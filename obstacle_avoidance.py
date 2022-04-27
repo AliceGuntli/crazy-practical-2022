@@ -37,12 +37,39 @@ def is_close(range):
         return range < MIN_DISTANCE
 
 def log_pos_callback(timestamp, data, logconf):
-    measured_x = data['stateEstimate.x']
+    global measured_x 
+    measured_x= data['stateEstimate.x']
+    global measured_y 
     measured_y = data['stateEstimate.y']
+    global measured_z 
     measured_z = data['stateEstimate.z']
     
-    if ((measured_x > MAX_DISTANCE) or (measured_x < -MAX_DISTANCE) or (measured_y > MAX_DISTANCE) or (measured_y < -MAX_DISTANCE)):
-        outisde = True
+def move_to_target(scf)  :
+    with MotionCommander(scf) as motion_commander:
+            with Multiranger(scf) as multiranger:
+                keep_flying = True
+                goal = False
+                while (keep_flying and not outside):
+                    VELOCITY = 0.5
+                    velocity_x = 0.0
+                    velocity_y = 0.0
+
+                    if is_close(multiranger.front):
+                        velocity_x = 0.0
+                        velocity_y = 0.2
+                    else :
+                        velocity_x = 0.2
+                        velocity_y = 0.0
+
+                    if is_close(multiranger.up):
+                        keep_flying = False
+
+                    motion_commander.start_linear_motion(
+                        velocity_x, velocity_y, 0)
+
+                    time.sleep(0.1)
+
+            print('Demo terminated!')
     
 
 if __name__ == '__main__':
@@ -60,33 +87,9 @@ if __name__ == '__main__':
         scf.cf.log.add_config(lg_alt)
         lg_alt.data_received_cb.add_callback(log_pos_callback)
         time.sleep(1)
+
         lg_alt.start()
+        move_to_target(scf)
+        lg_alt.stop()
 
-        with MotionCommander(scf) as motion_commander:
-            with Multiranger(scf) as multiranger:
-                keep_flying = True
-                while (keep_flying and not outside):
-                    VELOCITY = 0.5
-                    velocity_x = 0.0
-                    velocity_y = 0.0
-
-                    if is_close(multiranger.front):
-                        velocity_x -= VELOCITY
-                    if is_close(multiranger.back):
-                        velocity_x += VELOCITY
-
-                    if is_close(multiranger.left):
-                        velocity_y -= VELOCITY
-                    if is_close(multiranger.right):
-                        velocity_y += VELOCITY
-
-                    if is_close(multiranger.up):
-                        keep_flying = False
-
-                    motion_commander.start_linear_motion(
-                        velocity_x, velocity_y, 0)
-
-                    time.sleep(0.1)
-
-            lg_alt.stop()
-            print('Demo terminated!')
+        
