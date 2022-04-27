@@ -1,13 +1,23 @@
 import logging
 import sys
 import time
+from weakref import KeyedRef
 
 import cflib.crtp
 from cflib.crazyflie import Crazyflie
+from cflib.crazyflie.log import LogConfig
 from cflib.crazyflie.syncCrazyflie import SyncCrazyflie
+from cflib.crazyflie.syncLogger import SyncLogger
 from cflib.positioning.motion_commander import MotionCommander
 from cflib.utils import uri_helper
 from cflib.utils.multiranger import Multiranger
+
+MAX_DISTANCE = 0.5
+
+outside = False
+measured_x = 0
+measured_y = 0
+measured_z = 0
 
 URI = uri_helper.uri_from_env(default='radio://0/80/2M/E7E7E7E701')
 
@@ -26,18 +36,36 @@ def is_close(range):
     else:
         return range < MIN_DISTANCE
 
+def log_pos_callback(timestamp, data, logconf):
+    measured_x = data['stateEstimate.x']
+    measured_y = data['stateEstimate.y']
+    measured_z = data['stateEstimate.z']
+    
+    if ((measured_x > MAX_DISTANCE) or (measured_x < -MAX_DISTANCE) or (measured_y > MAX_DISTANCE) or (measured_y < -MAX_DISTANCE)):
+        outisde = True
+    
 
 if __name__ == '__main__':
     # Initialize the low-level drivers
     cflib.crtp.init_drivers()
 
+    lg_alt = LogConfig(name='Altitude', period_in_ms=10)
+    lg_alt.add_variable('stateEstimate.x', 'float')
+    lg_alt.add_variable('stateEstimate.y', 'float')
+    lg_alt.add_variable('stateEstimate.z', 'float')
+
     cf = Crazyflie(rw_cache='./cache')
     with SyncCrazyflie(URI, cf=cf) as scf:
+         # add callback to the altitude listener
+        scf.cf.log.add_config(lg_alt)
+        lg_alt.data_received_cb.add_callback(log_pos_callback)
+        time.sleep(1)
+        lg_alt.start()
+
         with MotionCommander(scf) as motion_commander:
             with Multiranger(scf) as multiranger:
                 keep_flying = True
-
-                while keep_flying:
+                while (keep_flying and not outside):
                     VELOCITY = 0.5
                     velocity_x = 0.0
                     velocity_y = 0.0
@@ -60,4 +88,5 @@ if __name__ == '__main__':
 
                     time.sleep(0.1)
 
+            lg_alt.stop()
             print('Demo terminated!')
