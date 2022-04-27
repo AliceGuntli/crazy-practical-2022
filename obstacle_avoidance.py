@@ -49,10 +49,13 @@ def move_to_target(scf)  :
             with Multiranger(scf) as multiranger:
                 keep_flying = True
                 goal = False
-                while (keep_flying and not outside):
+                while (keep_flying and not goal):
                     VELOCITY = 0.5
                     velocity_x = 0.0
                     velocity_y = 0.0
+
+                    if (measured_x > MAX_DISTANCE):
+                        goal = True
 
                     if is_close(multiranger.front):
                         velocity_x = 0.0
