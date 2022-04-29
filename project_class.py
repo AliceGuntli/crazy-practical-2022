@@ -47,6 +47,10 @@ class Charles:
         self.Te_loop = 0.01 # Cadence la boucle principale
         self.Te_log = 0.01 # Cadence la réception des données
 
+        print("Driver initialisation ..")
+        cflib.crtp.init_drivers()
+
+        print("Log Configuration ..")
         self.setLog()
 
 #----------------------------------------------------------------------------------------#
@@ -135,16 +139,16 @@ class Charles:
 #----------------------------------------------------------------------------------------#
 
     def run(self):
-        print("Driver initialisation ..")
-        cflib.crtp.init_drivers()
         print("Connection ..")
 
         with SyncCrazyflie(self.uri, cf=Crazyflie(rw_cache='./cache')) as scf:
             print("Charles connecté, Charles content")
-            
-            scf.cf.log.add_config(self.log)
-            self.log.data_received_cb.add_callback(self.log_callback)
+
             print("Add config ..")
+            scf.cf.log.add_config(self.log)
+            print("Add Callback ..")
+            self.log.data_received_cb.add_callback(self.log_callback)
+
             time.sleep(1)
 
             print("Start dataflow")

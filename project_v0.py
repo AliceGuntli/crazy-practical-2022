@@ -33,9 +33,9 @@ def const_alt(scf):
             if state == 0:
             # Automatic Take-off
 
+
+
             # state += 1
-
-
 #############################################################################
                 
             elif state == 1:
@@ -44,7 +44,6 @@ def const_alt(scf):
             # Alice & Léanne
 
             # state += 1
-
 #############################################################################
             
             elif state == 2:
@@ -53,7 +52,6 @@ def const_alt(scf):
             # David & Stephen
 
             # state += 1
-
 #############################################################################
             
             elif state == 3:
@@ -62,7 +60,6 @@ def const_alt(scf):
             # David & Stephen
 
             # state += 1
-
 #############################################################################
 
             elif state == 4:
@@ -92,13 +89,13 @@ if __name__ == '__main__':
 
     with SyncCrazyflie(uri, cf=Crazyflie(rw_cache='./cache')) as scf:
         # add callback to the altitude listener
-        scf.cf.log.add_config(lg_alt)
-        lg_alt.data_received_cb.add_callback(log_pos_callback)
+        scf.cf.log.add_config(logdef)
+        logdef.data_received_cb.add_callback(log_pos_callback)
         time.sleep(1)
     
-        lg_alt.start()
+        logdef.start()
         
         #time.sleep(5)
         const_alt(scf)
         
-        lg_alt.stop()
+        logdef.stop()
