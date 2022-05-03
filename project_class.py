@@ -26,54 +26,75 @@ class Charles:
         # Position in the "take off platform" frame
         self.xyz = [0, 0, 0]
         self.rpy = [0, 0, 0]
+        # self.range = [front, back, up, left, right, zrange]
+        self.range = [0, 0, 0, 0, 0, 0]
         self.xyz_rate_cmd = [0, 0, 0]
         self.rpy_rate_cmd = [0, 0, 0]
 
-        self.current_state = 0
+        self.state = 0
+        self.min_dist = 0.2 # Distance to stop flying 
         
-        self.var_list = ['stateEstimate.x',
+        self.pos_var_list = ['stateEstimate.x',
                          'stateEstimate.y',
                          'stateEstimate.z',
                          'stabilizer.roll',
                          'stabilizer.pitch',
-                         'stabilizer.yaw',
-                         'range.front',
+                         'stabilizer.yaw']
+
+        self.multi_var_list = ['range.front',
                          'range.back',
                          'range.up',
                          'range.left',
                          'range.right',
                          'range.zrange']
+                                    
                          
-        self.Te_loop = 0.01 # Cadence la boucle principale
-        self.Te_log = 0.01 # Cadence la réception des données
+        self.Te_loop = 0.01 # Cadence la boucle principale EN SECONDES
+        self.Te_log = 10 # Cadence la réception des données EN !!! MILLISECONDES !!!
 
         print("Driver initialisation ..")
         cflib.crtp.init_drivers()
 
         print("Log Configuration ..")
         self.setLog()
+        
+#----------------------------------------------------------------------------------------#
+
+    def is_not_close(self):
+        # False if an object is too close to the drone (up)
+        return (self.range[2] > self.min_dist)
 
 #----------------------------------------------------------------------------------------#
 
     def setLog(self):
 
-        self.log = LogConfig(name='Position', period_in_ms=self.Te_log)
+        self.log_position = LogConfig(name='Position', period_in_ms=self.Te_log)
+        self.log_multiranger = LogConfig(name='Multiranger', period_in_ms=self.Te_log)
         
-        for var in self.var_list:
-            self.log.add_variable(var, 'float')
+        for var in self.pos_var_list:
+            self.log_position.add_variable(var, 'float')
+
+        for var in self.multi_var_list:
+            self.log_multiranger.add_variable(var, 'float')
 
 #----------------------------------------------------------------------------------------#
 
-    def log_callback(self, timestamp, data, logconf):
-        self.xyz = [data[self.var_list[0]], data[self.var_list[1]], data[self.var_list[2]]]
-        self.pry = [data[self.var_list[3]], data[self.var_list[4]], data[self.var_list[5]]]
-        self.range = [data[self.var_list[6]],
-                      data[self.var_list[7]],
-                      data[self.var_list[8]],
-                      data[self.var_list[9]],
-                      data[self.var_list[10]],
-                      data[self.var_list[11]]]
+    def log_pos_callback(self, timestamp, data, logconf):
+        # Get x,y,z and roll, pitch, yaw values and save it into self variables
+        self.xyz = [data[self.pos_var_list[0]], data[self.pos_var_list[1]], data[self.pos_var_list[2]]]
+        self.pry = [data[self.pos_var_list[3]], data[self.pos_var_list[4]], data[self.pos_var_list[5]]]
 
+#----------------------------------------------------------------------------------------#
+
+    def log_multi_callback(self, timestamp, data, logconf):
+        # Get multiranger values and save it into self variables
+        self.range = [data[self.multi_var_list[0]],
+                      data[self.multi_var_list[1]],
+                      data[self.multi_var_list[2]],
+                      data[self.multi_var_list[3]],
+                      data[self.multi_var_list[4]],
+                      data[self.multi_var_list[5]]]
+        
 #----------------------------------------------------------------------------------------#
 
     def obstacle_avoidance(self):
@@ -86,7 +107,7 @@ class Charles:
 
     def stateMachine(self, scf):
         with MotionCommander(scf, default_height = self.default_height) as mc:
-            while(1):
+            while(self.is_not_close()):
                 if self.state == 0:
 
                     #---- Take off ----#
@@ -130,8 +151,7 @@ class Charles:
 
                 else:
                     print("Woooooops invalid state")
-
-                self.obstacle_avoidance()    
+   
                 mc.start_linear_motion(self.xyz_rate_cmd[0], self.xyz_rate_cmd[1], self.xyz_rate_cmd[2], self.rpy_rate_cmd[0])
 
                 time.sleep(self.Te_loop)
@@ -145,20 +165,24 @@ class Charles:
             print("Charles connecté, Charles content")
 
             print("Add config ..")
-            scf.cf.log.add_config(self.log)
+            scf.cf.log.add_config(self.log_position)
+            scf.cf.log.add_config(self.log_multiranger)
             print("Add Callback ..")
-            self.log.data_received_cb.add_callback(self.log_callback)
+            self.log_position.data_received_cb.add_callback(self.log_pos_callback)
+            self.log_multiranger.data_received_cb.add_callback(self.log_multi_callback)
 
             time.sleep(1)
 
             print("Start dataflow")
-            self.log.start()
+            self.log_position.start()
+            self.log_multiranger.start()
 
             print("Z'eeeeeeest parti")
             self.stateMachine(scf)
 
             print("Goodbye :'(")
-            self.log.stop()
+            self.log_position.stop()
+            self.log_multiranger.stop()
             
 ####################################### MAIN ##############################################
 
