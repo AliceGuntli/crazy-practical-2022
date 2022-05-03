@@ -1,3 +1,4 @@
+from audioop import mul
 import logging
 import sys
 import time
@@ -12,12 +13,15 @@ from cflib.positioning.motion_commander import MotionCommander
 from cflib.utils import uri_helper
 from cflib.utils.multiranger import Multiranger
 
-MAX_DISTANCE = 0.5
+MAX_DISTANCE = 3
 
 outside = False
 measured_x = 0
 measured_y = 0
 measured_z = 0
+
+min_y = 1.0
+
 
 URI = uri_helper.uri_from_env(default='radio://0/80/2M/E7E7E7E701')
 
@@ -29,7 +33,7 @@ logging.basicConfig(level=logging.ERROR)
 
 
 def is_close(range):
-    MIN_DISTANCE = 0.2  # m
+    MIN_DISTANCE = 0.3  # m
 
     if range is None:
         return False
@@ -50,19 +54,30 @@ def move_to_target(scf)  :
                 keep_flying = True
                 goal = False
                 while (keep_flying and not goal):
-                    VELOCITY = 0.5
+                    VELOCITY = 0.3
                     velocity_x = 0.0
                     velocity_y = 0.0
+
+                    if is_close(multiranger.front):     # There is an obstacle 
+                        if measured_y < min_y :
+                            velocity_x = 0.0
+                            velocity_y = 2*VELOCITY
+                        
+                        else :
+                            velocity_x = 0.0
+                            velocity_y = -2*VELOCITY
+
+                    else :                              # If no obstacle, go forward
+                        velocity_x = VELOCITY
+                        velocity_y = 0.0
+                
 
                     if (measured_x > MAX_DISTANCE):
                         goal = True
 
-                    if is_close(multiranger.front):
-                        velocity_x = 0.0
-                        velocity_y = 0.2
-                    else :
-                        velocity_x = 0.2
-                        velocity_y = 0.0
+                    #if (measured_z < 0.25 and measured_x > 0.5):
+                    #    keep_flying = False
+                    #print(measured_z)
 
                     if is_close(multiranger.up):
                         keep_flying = False
