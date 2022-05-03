@@ -64,6 +64,16 @@ class Charles:
         # False if an object is too close to the drone (up)
         return (self.range[2] > self.min_dist)
 
+# ----------------------------------------------------------------------------------------#
+
+    def is_close_obs(self,range): # if use of self.range, change scale to mm
+        MIN_DISTANCE = 0.3  # m
+
+        if range is None:
+            return False
+        else:
+            return range < MIN_DISTANCE
+
 #----------------------------------------------------------------------------------------#
 
     def setLog(self):
@@ -97,11 +107,48 @@ class Charles:
         
 #----------------------------------------------------------------------------------------#
 
-    def obstacle_avoidance(self):
-        # self.range = [front, back, up, left, right, zrange]
-        self.xyz_rate_cmd[0] += 0
-        self.xyz_rate_cmd[1] += 0
-        self.xyz_rate_cmd[2] += 0
+    def move_to_landing_zone(self):
+        keep_flying = True
+        goal = False
+        while (keep_flying and not goal):
+            VELOCITY = 0.3
+            MIN_Y = 0.5
+            MAX_DISTANCE = 3
+            velocity_x = 0.0
+            velocity_y = 0.0
+
+
+            if self.is_close_obs(self.range[0]):  # There is an obstacle in front
+                if self.xyz[1] < MIN_Y:
+                    velocity_x = 0.0
+                    velocity_y = 2 * VELOCITY
+
+                else:
+                    velocity_x = 0.0
+                    velocity_y = -2 * VELOCITY
+
+            else:  # If no obstacle, go forward
+                velocity_x = VELOCITY
+                velocity_y = 0.0
+
+            if (self.xyz[0] > MAX_DISTANCE):
+                goal = True
+
+            # if (measured_z < 0.25 and measured_x > 0.5):
+            #    keep_flying = False
+            # print(measured_z)
+
+            # to be removed maybe...
+            if self.is_close_obs(self.range[2]):
+                keep_flying = False
+
+            self.xyz_rate_cmd = [velocity_x, velocity_y, 0]
+
+            time.sleep(0.1)
+
+        print('Safe arrival in Landing zone ! Let the scan begin')
+
+
 
 #----------------------------------------------------------------------------------------#
 
@@ -121,6 +168,8 @@ class Charles:
                 elif self.state == 1:
 
                     #---- Fly to zone 2 ----#
+
+                    
 
                     if True:
                         self.state += 1
