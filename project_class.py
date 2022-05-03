@@ -32,7 +32,7 @@ class Charles:
         self.rpy_rate_cmd = [0, 0, 0]
 
         self.state = 0
-        self.min_dist = 0.2 # Distance to stop flying 
+        self.min_dist = 300 # Distance to stop flying 
         
         self.pos_var_list = ['stateEstimate.x',
                          'stateEstimate.y',
@@ -108,6 +108,7 @@ class Charles:
     def stateMachine(self, scf):
         with MotionCommander(scf, default_height = self.default_height) as mc:
             while(self.is_not_close()):
+                print(self.range[2])
                 if self.state == 0:
 
                     #---- Take off ----#
@@ -115,7 +116,7 @@ class Charles:
                     # default height has been reached -> Next state
                     if self.xyz[2] >= self.default_height:
                         self.state += 1
-                        print("Next state : " + str(self.state))
+                        #print("Next state : " + str(self.state))
 
                 elif self.state == 1:
 
@@ -123,7 +124,7 @@ class Charles:
 
                     if True:
                         self.state += 1
-                        print("Next state : " + str(self.state))
+                        #print("Next state : " + str(self.state))
 
                 elif self.state == 2:
 
@@ -131,7 +132,7 @@ class Charles:
 
                     if True:
                         self.state += 1
-                        print("Next state : " + str(self.state))
+                        #print("Next state : " + str(self.state))
 
                 elif self.state == 3:
 
@@ -139,7 +140,7 @@ class Charles:
 
                     if True:
                         self.state += 1
-                        print("Next state : " + str(self.state))
+                        #print("Next state : " + str(self.state))
 
                 elif self.state == 4:
 
@@ -147,14 +148,14 @@ class Charles:
 
                     if True:
                         self.state = 0
-                        print("Next state : " + str(self.state))
+                        #print("Next state : " + str(self.state))
 
                 else:
                     print("Woooooops invalid state")
    
                 mc.start_linear_motion(self.xyz_rate_cmd[0], self.xyz_rate_cmd[1], self.xyz_rate_cmd[2], self.rpy_rate_cmd[0])
 
-                time.sleep(self.Te_loop)
+                #time.sleep(self.Te_loop)
 
 #----------------------------------------------------------------------------------------#
 
