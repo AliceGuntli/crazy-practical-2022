@@ -67,7 +67,7 @@ class Charles:
 # ----------------------------------------------------------------------------------------#
 
     def is_close_obs(self,range): # if use of self.range, change scale to mm
-        MIN_DISTANCE = 0.3  # m
+        MIN_DISTANCE = 300  # mm
 
         if range is None:
             return False
@@ -109,44 +109,44 @@ class Charles:
 
     def move_to_landing_zone(self):
         keep_flying = True
-        goal = False
-        while (keep_flying and not goal):
-            VELOCITY = 0.3
-            MIN_Y = 0.5
-            MAX_DISTANCE = 3
-            velocity_x = 0.0
+
+        VELOCITY = 0.3
+        MIN_Y = 0.5
+        MAX_DISTANCE = 2
+        velocity_x = 0.0
+        velocity_y = 0.0
+
+        if self.is_close_obs(self.range[0]):  # There is an obstacle in front
+            #print("Front : ", self.range[0])
+            if self.xyz[1] < MIN_Y:
+                velocity_x = 0.0
+                velocity_y = 2 * VELOCITY
+
+            else:
+                velocity_x = 0.0
+                velocity_y = -2 * VELOCITY
+
+        else:  # If no obstacle, go forward
+            #print("Straight")
+            velocity_x = VELOCITY
             velocity_y = 0.0
 
-
-            if self.is_close_obs(self.range[0]):  # There is an obstacle in front
-                if self.xyz[1] < MIN_Y:
-                    velocity_x = 0.0
-                    velocity_y = 2 * VELOCITY
-
-                else:
-                    velocity_x = 0.0
-                    velocity_y = -2 * VELOCITY
-
-            else:  # If no obstacle, go forward
-                velocity_x = VELOCITY
-                velocity_y = 0.0
-
-            if (self.xyz[0] > MAX_DISTANCE):
-                goal = True
+        if (self.xyz[0] > MAX_DISTANCE):
+            keep_flying = False
+            velocity_x = 0.0
+            velocity_y = 0.0
 
             # if (measured_z < 0.25 and measured_x > 0.5):
             #    keep_flying = False
             # print(measured_z)
 
             # to be removed maybe...
-            if self.is_close_obs(self.range[2]):
-                keep_flying = False
+        if self.is_close_obs(self.range[2]):
+            keep_flying = False
 
-            self.xyz_rate_cmd = [velocity_x, velocity_y, 0]
+        self.xyz_rate_cmd = [velocity_x, velocity_y, 0]
 
-            time.sleep(0.1)
-
-        print('Safe arrival in Landing zone ! Let the scan begin')
+        return keep_flying
 
 
 
@@ -155,7 +155,7 @@ class Charles:
     def stateMachine(self, scf):
         with MotionCommander(scf, default_height = self.default_height) as mc:
             while(self.is_not_close()):
-                print(self.range[2])
+                #print(self.range[2])
                 if self.state == 0:
 
                     #---- Take off ----#
@@ -168,10 +168,16 @@ class Charles:
                 elif self.state == 1:
 
                     #---- Fly to zone 2 ----#
+                    # self.range = [front, back, up, left, right, zrange]
+                    #print("Front main : ", self.range[0])
+                    #print("Left : ", self.range[3])
+                    #print("Right : ", self.range[4])
+                    #print("Up : ", self.range[2])
 
-                    
+                    keep_flying = self.move_to_landing_zone()
 
-                    if True:
+                    if not keep_flying:
+                        print('Safe arrival in Landing zone ! Let the scan begin')
                         self.state += 1
                         #print("Next state : " + str(self.state))
 
@@ -201,10 +207,10 @@ class Charles:
 
                 else:
                     print("Woooooops invalid state")
-   
+                print(self.xyz_rate_cmd[0])
                 mc.start_linear_motion(self.xyz_rate_cmd[0], self.xyz_rate_cmd[1], self.xyz_rate_cmd[2], self.rpy_rate_cmd[0])
 
-                #time.sleep(self.Te_loop)
+                time.sleep(self.Te_loop)
 
 #----------------------------------------------------------------------------------------#
 
