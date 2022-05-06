@@ -10,7 +10,53 @@ from cflib.positioning.motion_commander import MotionCommander
 
 logging.basicConfig(level=logging.ERROR)
 
-######################################### CLASS ########################################
+###################################### PLAYGROUND ########################################
+
+class playground:
+    def __init__(self):
+        """        
+                            W
+        ##########################################
+        #                   L               h    #
+        # l   ------------------------------   l #
+        #                                   |    #
+        #                                   | H  #
+        #                                   |    #
+        #     ------------------------------     # H3
+        #    |                                   #
+        #    | H                                 #
+        #    |            L                      #
+        #  l  ------------------------------   l #
+        #                                  h     #
+        ##########################################
+        #                                        #
+        #                          xxxx          #
+        #                          xxxx          #
+        #                          xxxx          #
+        #        xxxx                            # H2
+        #        xxxx                            #
+        #        xxxx                            #
+        #                                        #
+        ##########################################
+        #                                        #
+        #                                        #
+        #                                        #
+        #             ooooo                      #
+   x0 > #             ooooo                      # H1
+        #             ooooo                      #
+        ^                                        #
+        |                                        #
+        O-->######################################
+                        ^
+                        y0
+        """
+        self.W = 3 # m
+        self.H1 = 1 # m
+        self.H2 = 1 # m
+        self.H3 = 1 # m
+        self.xyz0 = [1, 0.4, 0] # Inital position of the platform
+
+###################################### CHARLES AIRLINES ########################################
 
 class Charles:
     def __init__(self):
@@ -19,13 +65,19 @@ class Charles:
         
         self.uri = "radio://0/80/2M/E7E7E7E701"
         self.default_height = 0.5
+
+        self.playground = playground()
         
         # Initial position in the global frame
-        self.xyz0 = [0, 0, 0]
+        self.xyz0 = self.playground.xyz0
 
         # Position in the "take off platform" frame
         self.xyz = [0, 0, 0]
         self.rpy = [0, 0, 0]
+        
+        # Position in the global frame
+        self.xyz_global = self.xyz0
+            
         # self.range = [front, back, up, left, right, zrange]
         self.range = [0, 0, 0, 0, 0, 0]
         self.xyz_rate_cmd = [0, 0, 0]
@@ -47,7 +99,16 @@ class Charles:
                          'range.left',
                          'range.right',
                          'range.zrange']
-                                    
+
+        # Searching path variables
+        self.waypoints = None
+        # Constants : 
+
+        self.l = 0.2 # m
+        self.L =  self.playground.W - 2*self.l# m
+        self.h = 0.1 # m
+        #self.H = self.H3 - self.N *  # m
+        self.H = 2 # IL FAUT LE CALCULER EN FONCTION DES AUTRES PARAMETRES !!!
                          
         self.Te_loop = 0.01 # Cadence la boucle principale EN SECONDES
         self.Te_log = 10 # Cadence la réception des données EN !!! MILLISECONDES !!!
@@ -92,6 +153,7 @@ class Charles:
     def log_pos_callback(self, timestamp, data, logconf):
         # Get x,y,z and roll, pitch, yaw values and save it into self variables
         self.xyz = [data[self.pos_var_list[0]], data[self.pos_var_list[1]], data[self.pos_var_list[2]]]
+        self.xyz_global = self.xyz + self.xyz0 # Position in the global frame
         self.pry = [data[self.pos_var_list[3]], data[self.pos_var_list[4]], data[self.pos_var_list[5]]]
 
 #----------------------------------------------------------------------------------------#
@@ -148,6 +210,42 @@ class Charles:
 
         return keep_flying
 
+#----------------------------------------------------------------------------------------#
+
+    def set_waypoints(self):
+        """
+        Create a list of waypoints in the GLOBAL FRAME to search the platform
+                            W
+        ##########################################
+        #                   L               h    #
+        # l   ------------------------------   l #
+        #                                   |    #
+        #                                   | H  #
+        #                                   |    #
+        #     ------------------------------     # H3
+        #    |                                   #
+        #    | H                                 #
+        #    |            L                      #
+        #  l  ------pi-----------------------  l #
+        #                                  h     #
+        ##########################################
+        """
+        # When we enter this function, drone is at pi
+
+        # Choose direction to start with
+        if self.xyz_global[1] > self.playground.W / 2:
+            # Start left
+            x0 = self.xyz_global[0]
+            y0 = self.playground.W - self.l
+            self.waypoints.append([x0, y0, 0])
+            self.waypoints.append(self.waypoints[0] + [self.H, 0, 0])
+            self.waypoints.append(self.waypoints[1] + [0, -self.L, 0])
+
+            # Faire une for pour remplir tout seul
+            pass
+        
+        pass
+
 
 
 #----------------------------------------------------------------------------------------#
@@ -168,6 +266,7 @@ class Charles:
                 elif self.state == 1:
 
                     #---- Fly to zone 2 ----#
+                    
                     # self.range = [front, back, up, left, right, zrange]
                     #print("Front main : ", self.range[0])
                     #print("Left : ", self.range[3])
@@ -184,6 +283,10 @@ class Charles:
                 elif self.state == 2:
 
                     #---- Search landing zone ----#
+                    if self.waypoints is None:
+                        self.xyz_rate_cmd = [0, 0, 0]
+                        self.set_waypoints()
+                    
 
                     if True:
                         self.state += 1
