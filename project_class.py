@@ -11,6 +11,15 @@ import numpy as np
 
 logging.basicConfig(level=logging.ERROR)
 
+######################################### INFO ###########################################
+
+"""
+ATTENTION : J'AI CHANGE LE SIGNE DE Y DANS LA CALLBACK ET A LA FIN DE LA STATE MACHINE QUAND
+ON SET LA COMMANDE DE VITESSE POUR QUE LE SENS DES Y POSITIFS
+CORRESPONDE AU SENS DU DESSIN DU PLAYGROUND -> SI CA POSE PROBLEME ON POURRA CHANGER
+MAIS POUR LA PARTIE RECHERCHE DE PLATEFORME CA M'ARRANGAIT
+"""
+
 ###################################### PLAYGROUND ########################################
 
 class playground:
@@ -51,10 +60,10 @@ class playground:
                         ^
                         y0
         """
-        self.W = 3 # m
+        self.W = 1 # m
         self.H1 = 1 # m
         self.H2 = 1 # m
-        self.H3 = 1 # m
+        self.H3 = 1.5 # m
         self.xyz0 = np.array([1, 0.4, 0.1]) # Inital position of the platform
 
 ###################################### CHARLES AIRLINES ########################################
@@ -104,10 +113,10 @@ class Charles:
         # Searching path variables
         self.waypoints = None
         # Constants : 
-        self.l = 0.2 # marge de chaque côté en y
-        self.L =  self.playground.W - 2*self.l # Largeur des allers retours en y
+        self.l = 0.1 # marge de chaque côté en y
+        self.L = self.playground.W - 2*self.l # Largeur des allers retours en y
         self.h = 0.1 # marge de chaque côté en x
-        self.N = 3  # Nombre d'allers
+        self.N = 5  # Nombre d'allers
         self.H = (self.playground.H3 - 2 * self.h)/(self.N - 1) # Ecart x entre chaque aller
                          
         self.Te_loop = 0.01 # Cadence la boucle principale EN SECONDES
@@ -152,9 +161,9 @@ class Charles:
 
     def log_pos_callback(self, timestamp, data, logconf):
         # Get x,y,z and roll, pitch, yaw values and save it into self variables
-        self.xyz = [data[self.pos_var_list[0]], data[self.pos_var_list[1]], data[self.pos_var_list[2]]]
+        self.xyz = np.array([data[self.pos_var_list[0]], -data[self.pos_var_list[1]], data[self.pos_var_list[2]]])
         self.xyz_global = self.xyz + self.xyz0 # Position in the global frame
-        self.pry = [data[self.pos_var_list[3]], data[self.pos_var_list[4]], data[self.pos_var_list[5]]]
+        self.pry = np.array([data[self.pos_var_list[3]], data[self.pos_var_list[4]], data[self.pos_var_list[5]]])
 
 #----------------------------------------------------------------------------------------#
 
@@ -234,23 +243,63 @@ class Charles:
 
         self.waypoints = np.array([])
 
-        # Choose direction to start with
-        if self.xyz_global[1] > self.playground.W / 2:
-            # Start en bas à gauche : P(x0, l, 0.5)
-            
-            # Initial point
-            self.waypoints = np.append(self.waypoints, [self.xyz_global[0], self.l, self.default_height])
+        # Start en bas à gauche : P(x0, l, 0.5) -> On assume que xyz_global[1] > W/2
+        self.waypoints = np.append(self.waypoints, [self.xyz_global[0], self.l, self.default_height])
 
-            for i in range(self.N-1):
-                self.waypoints = np.append(self.waypoints, self.waypoints[6*i:6*i+3)] + np.array([self.H, 0, 0]))
-                # Third point
-                self.waypoints = np.append(self.waypoints, self.waypoints[6*i+3):6*i+6] + np.array([0, self.L * (-1)**i, 0]))
-                # Fourth point
-            pass
+        for i in range(self.N-1):
+            self.waypoints = np.append(self.waypoints, self.waypoints[6*i:6*i+3] + np.array([self.H, 0, 0]))
+            self.waypoints = np.append(self.waypoints, self.waypoints[6*i+3:6*i+6] + np.array([0, self.L * (-1)**i, 0]))
+
+        # Correct starting direction
+        if self.xyz_global[1] < self.playground.W / 2:
+            # Mirroir + décalage de 2*l + L
+            for i in range(int(len(self.waypoints)/3)):
+                self.waypoints[3*i+1] = -self.waypoints[3*i+1] + 2*self.l + self.L
+                
+
+#----------------------------------------------------------------------------------------#
+
+    def follow_waypoints(self):
+        # Min distance to consider point as reached
+        epsilon = 0.05 # m
+        modulus_error = np.sum((self.waypoints[0:3] - self.xyz_global)**2)
+        print(modulus_error)
         
-        pass
+        # Check if the waypoint has been reached
+        if modulus_error < epsilon**2:
+            # If yes, check if it was the last waypoint in the list
+            print("Next Waypoint")
+            if len(self.waypoints) == 3:
+                # If yes stop the search
+                self.waypoints = None
+                
+                return False
+  
+            # If No, then remove the first waypoint from the list
+            self.waypoints = self.waypoints[3:len(self.waypoints)]
 
+        current_waypoint = self.waypoints[0:3]
 
+        # Compute a command to reach this waypoint
+        error = current_waypoint - self.xyz_global
+        #print(error)
+        
+        kp = 1
+        MAX_SPEED = 0.1
+
+        # Compute Speed command of the drone
+        self.xyz_rate_cmd = kp * error
+        
+        # Limit the speed of each component xyz
+        for i in range(3):
+            if self.xyz_rate_cmd[i] > MAX_SPEED:
+                self.xyz_rate_cmd[i] = MAX_SPEED
+
+            if self.xyz_rate_cmd[i] < -MAX_SPEED:
+                self.xyz_rate_cmd[i] = -MAX_SPEED
+        
+        
+        return True
 
 #----------------------------------------------------------------------------------------#
 
@@ -277,23 +326,30 @@ class Charles:
                     #print("Right : ", self.range[4])
                     #print("Up : ", self.range[2])
 
-                    keep_flying = self.move_to_landing_zone()
-
+                    #keep_flying = self.move_to_landing_zone()
+                    keep_flying = False
+                    
                     if not keep_flying:
                         print('Safe arrival in Landing zone ! Let the scan begin')
+                        keep_searching = True
                         self.state += 1
                         #print("Next state : " + str(self.state))
 
                 elif self.state == 2:
 
                     #---- Search landing zone ----#
-                    if self.waypoints is None:
-                        self.xyz_rate_cmd = [0, 0, 0]
+                    if self.waypoints is None and keep_searching == True:
+                        # Wait to compute waypoints (searching path)
+                        self.xyz_rate_cmd = np.array([0, 0, 0])
                         self.set_waypoints()
-                    
+                        print("Setting waypoints")
 
-                    if True:
+                    # Return true if we reached last waypoint, false otherwise
+                    keep_searching = self.follow_waypoints()
+
+                    if not keep_searching:
                         self.state += 1
+                        self.waypoints = None
                         #print("Next state : " + str(self.state))
 
                 elif self.state == 3:
@@ -314,8 +370,9 @@ class Charles:
 
                 else:
                     print("Woooooops invalid state")
-                print(self.xyz_rate_cmd[0])
-                mc.start_linear_motion(self.xyz_rate_cmd[0], self.xyz_rate_cmd[1], self.xyz_rate_cmd[2], self.rpy_rate_cmd[0])
+                #print(self.xyz_rate_cmd[0])
+                
+                mc.start_linear_motion(self.xyz_rate_cmd[0], -self.xyz_rate_cmd[1], self.xyz_rate_cmd[2], self.rpy_rate_cmd[0])
 
                 time.sleep(self.Te_loop)
 
