@@ -239,7 +239,7 @@ class Charles:
         #                                  h     #
         ##########################################
         """
-        # When we enter this function, drone is at pi
+        # When we enter this function, drone is at position pi
 
         self.waypoints = np.array([])
 
@@ -260,10 +260,10 @@ class Charles:
 #----------------------------------------------------------------------------------------#
 
     def follow_waypoints(self):
+        """ Follow the waypoints given in self.waypoints"""
         # Min distance to consider point as reached
         epsilon = 0.05 # m
-        modulus_error = np.sum((self.waypoints[0:3] - self.xyz_global)**2)
-        print(modulus_error)
+        modulus_error = np.sum((self.waypoints[0:3] - self.xyz_global)**2) # Modulus of the error [m^2]
         
         # Check if the waypoint has been reached
         if modulus_error < epsilon**2:
@@ -275,19 +275,19 @@ class Charles:
                 
                 return False
   
-            # If No, then remove the first waypoint from the list
+            # Otherwise remove the first waypoint from the list
             self.waypoints = self.waypoints[3:len(self.waypoints)]
 
+        # Set current waypoint to reach
         current_waypoint = self.waypoints[0:3]
 
-        # Compute a command to reach this waypoint
+        # Compute the error
         error = current_waypoint - self.xyz_global
-        #print(error)
         
         kp = 1
         MAX_SPEED = 0.1
 
-        # Compute Speed command of the drone
+        # Compute speed command to reduce the error
         self.xyz_rate_cmd = kp * error
         
         # Limit the speed of each component xyz
@@ -297,8 +297,8 @@ class Charles:
 
             if self.xyz_rate_cmd[i] < -MAX_SPEED:
                 self.xyz_rate_cmd[i] = -MAX_SPEED
-        
-        
+
+        # Continue the searching path
         return True
 
 #----------------------------------------------------------------------------------------#
@@ -370,6 +370,7 @@ class Charles:
 
                 else:
                     print("Woooooops invalid state")
+                    
                 #print(self.xyz_rate_cmd[0])
                 
                 mc.start_linear_motion(self.xyz_rate_cmd[0], -self.xyz_rate_cmd[1], self.xyz_rate_cmd[2], self.rpy_rate_cmd[0])
