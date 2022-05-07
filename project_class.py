@@ -7,6 +7,7 @@ from cflib.crazyflie.log import LogConfig
 from cflib.crazyflie.syncCrazyflie import SyncCrazyflie
 from cflib.crazyflie.syncLogger import SyncLogger
 from cflib.positioning.motion_commander import MotionCommander
+import numpy as np
 
 logging.basicConfig(level=logging.ERROR)
 
@@ -54,7 +55,7 @@ class playground:
         self.H1 = 1 # m
         self.H2 = 1 # m
         self.H3 = 1 # m
-        self.xyz0 = [1, 0.4, 0] # Inital position of the platform
+        self.xyz0 = np.array([1, 0.4, 0.1]) # Inital position of the platform
 
 ###################################### CHARLES AIRLINES ########################################
 
@@ -72,16 +73,16 @@ class Charles:
         self.xyz0 = self.playground.xyz0
 
         # Position in the "take off platform" frame
-        self.xyz = [0, 0, 0]
-        self.rpy = [0, 0, 0]
+        self.xyz = np.array([0, 0, 0])
+        self.rpy = np.array([0, 0, 0])
         
         # Position in the global frame
         self.xyz_global = self.xyz0
             
         # self.range = [front, back, up, left, right, zrange]
-        self.range = [0, 0, 0, 0, 0, 0]
-        self.xyz_rate_cmd = [0, 0, 0]
-        self.rpy_rate_cmd = [0, 0, 0]
+        self.range = np.array([0, 0, 0, 0, 0, 0])
+        self.xyz_rate_cmd = np.array([0, 0, 0])
+        self.rpy_rate_cmd = np.array([0, 0, 0])
 
         self.state = 0
         self.min_dist = 300 # Distance to stop flying 
@@ -103,12 +104,11 @@ class Charles:
         # Searching path variables
         self.waypoints = None
         # Constants : 
-
-        self.l = 0.2 # m
-        self.L =  self.playground.W - 2*self.l# m
-        self.h = 0.1 # m
-        #self.H = self.H3 - self.N *  # m
-        self.H = 2 # IL FAUT LE CALCULER EN FONCTION DES AUTRES PARAMETRES !!!
+        self.l = 0.2 # marge de chaque côté en y
+        self.L =  self.playground.W - 2*self.l # Largeur des allers retours en y
+        self.h = 0.1 # marge de chaque côté en x
+        self.N = 3  # Nombre d'allers
+        self.H = (self.playground.H3 - 2 * self.h)/(self.N - 1) # Ecart x entre chaque aller
                          
         self.Te_loop = 0.01 # Cadence la boucle principale EN SECONDES
         self.Te_log = 10 # Cadence la réception des données EN !!! MILLISECONDES !!!
@@ -232,16 +232,20 @@ class Charles:
         """
         # When we enter this function, drone is at pi
 
+        self.waypoints = np.array([])
+
         # Choose direction to start with
         if self.xyz_global[1] > self.playground.W / 2:
-            # Start left
-            x0 = self.xyz_global[0]
-            y0 = self.playground.W - self.l
-            self.waypoints.append([x0, y0, 0])
-            self.waypoints.append(self.waypoints[0] + [self.H, 0, 0])
-            self.waypoints.append(self.waypoints[1] + [0, -self.L, 0])
+            # Start en bas à gauche : P(x0, l, 0.5)
+            
+            # Initial point
+            self.waypoints = np.append(self.waypoints, [self.xyz_global[0], self.l, self.default_height])
 
-            # Faire une for pour remplir tout seul
+            for i in range(self.N-1):
+                self.waypoints = np.append(self.waypoints, self.waypoints[6*i:6*i+3)] + np.array([self.H, 0, 0]))
+                # Third point
+                self.waypoints = np.append(self.waypoints, self.waypoints[6*i+3):6*i+6] + np.array([0, self.L * (-1)**i, 0]))
+                # Fourth point
             pass
         
         pass
