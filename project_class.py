@@ -64,7 +64,14 @@ class playground:
         self.H1 = 1 # m
         self.H2 = 1 # m
         self.H3 = 1.5 # m
-        self.xyz0 = np.array([1, 0.4, 0.1]) # Inital position of the platform
+
+        self.padHeight = 0.1
+        self.padMargin = 0.01
+        self.padEdge = np.zeros((4, 2))
+        self.padCenter = np.array([0., 0.])
+
+        #self.xyz0 = np.array([1, 0.4, self.padHeight])  # Inital position of the platform
+        self.xyz0 = np.array([0., 0., 0.])
 
 ###################################### CHARLES AIRLINES ########################################
 
@@ -72,9 +79,9 @@ class Charles:
     def __init__(self):
 
         print("Bienvenue sur Charles Airline")
-        
+
         self.uri = "radio://0/80/2M/E7E7E7E701"
-        self.default_height = 0.5
+        self.default_height = 0.2
 
         self.playground = playground()
         
@@ -91,11 +98,20 @@ class Charles:
         # self.range = [front, back, up, left, right, zrange]
         self.range = np.array([0, 0, 0, 0, 0, 0])
         self.xyz_rate_cmd = np.array([0, 0, 0])
+        self.xyz_rate_cmd_old = np.array([0, 0, 0])
         self.rpy_rate_cmd = np.array([0, 0, 0])
 
         self.state = 0
-        self.min_dist = 300 # Distance to stop flying 
-        
+
+        # variable related to landing pad
+        self.stateCentering = 0
+        self.edgeFound = 0  # 0:not found, 1:rising edge, 2:falling edge
+        self.edgeDelayCounter = 0
+        self.edgeDelayMax = 100
+        self.centerReached = False
+        self.min = 999.
+        self.max = 0.
+
         self.pos_var_list = ['stateEstimate.x',
                          'stateEstimate.y',
                          'stateEstimate.z',
@@ -112,13 +128,17 @@ class Charles:
 
         # Searching path variables
         self.waypoints = None
-        # Constants : 
+
+        # Constants :
+        self.min_dist = 300  # Distance to stop flying
+
         self.l = 0.1 # marge de chaque côté en y
         self.L = self.playground.W - 2*self.l # Largeur des allers retours en y
         self.h = 0.1 # marge de chaque côté en x
         self.N = 5  # Nombre d'allers
         self.H = (self.playground.H3 - 2 * self.h)/(self.N - 1) # Ecart x entre chaque aller
-                         
+
+
         self.Te_loop = 0.01 # Cadence la boucle principale EN SECONDES
         self.Te_log = 10 # Cadence la réception des données EN !!! MILLISECONDES !!!
 
@@ -303,6 +323,103 @@ class Charles:
 
 #----------------------------------------------------------------------------------------#
 
+# ----------------------------------------------------------------------------------------#
+
+    def detectEdge(self):
+        # Detect edge of landing pad
+        if self.edgeDelayCounter:
+            self.edgeFound = 0
+            self.edgeDelayCounter = (self.edgeDelayCounter + 1)%self.edgeDelayMax
+        else:
+            # if self.xyz[2] < self.min:
+            #     self.min = self.xyz[2]
+            #     print("min = ", self.min, "    max = ", self.max)
+            # if self.xyz[2] > self.max:
+            #     self.max = self.xyz[2]
+            #     print("min = ", self.min, "    max = ", self.max)
+            print("z = ", self.xyz[2])
+            #if (self.xyz[2] - self.default_height) <= -(self.playground.padHeight-self.playground.padMargin):
+            if self.xyz[2] < (self.default_height - 0.03):
+                self.edgeFound = 1
+                self.edgeDelayCounter = 1
+                print('Rising edge found')
+            #elif (self.xyz[2] - self.default_height) >= (self.playground.padHeight-self.playground.padMargin):
+            elif self.xyz[2] > (self.default_height + 0.03):
+                self.edgeFound = 2
+                self.edgeDelayCounter = 1
+                print('Falling edge found')
+
+# ----------------------------------------------------------------------------------------#
+
+    def centering(self):
+        if self.stateCentering == 0:
+            self.detectEdge()
+            if self.edgeFound == 2: # first falling edge detected, go back
+                self.playground.padEdge[self.stateCentering, 0] = self.xyz_global[0]
+                self.playground.padEdge[self.stateCentering, 1] = self.xyz_global[1]
+
+                self.xyz_rate_cmd *= -1
+
+                self.stateCentering += 1
+                print('first edge')
+
+        elif self.stateCentering == 1:
+            self.detectEdge()
+            if self.edgeFound == 2: # second falling edge detected, compute pseudo center and add to waypoint
+                self.playground.padEdge[self.stateCentering, 0] = self.xyz_global[0]
+                self.playground.padEdge[self.stateCentering, 1] = self.xyz_global[1]
+
+                self.playground.padCenter = [(self.playground.padEdge[0, 0] + self.playground.padEdge[1, 0])/2,
+                                             (self.playground.padEdge[0, 1] + self.playground.padEdge[1, 1])/2]
+                print("Pad center = ", self.playground.padCenter)
+
+                self.waypoints = np.append(self.waypoints, [self.playground.padCenter[0], self.playground.padCenter[1], self.default_height])
+
+                self.xyz_rate_cmd_old = self.xyz_rate_cmd # for later use
+
+                self.stateCentering += 1
+                print('second edge')
+
+        elif self.stateCentering == 2:
+            self.detectEdge()
+            if not self.centerReached:
+                if not self.follow_waypoints():
+                    self.centerReached = True
+                    self.xyz_rate_cmd = [self.xyz_rate_cmd_old[1], self.xyz_rate_cmd_old[0], self.xyz_rate_cmd_old[2]]
+                    print('pseudo center')
+            else:
+                if self.edgeFound == 2: # third falling edge detected, go back
+                    self.playground.padEdge[self.stateCentering, 0] = self.xyz_global[0]
+                    self.playground.padEdge[self.stateCentering, 1] = self.xyz_global[1]
+
+                    self.xyz_rate_cmd *= -1
+
+                    self.centerReached = False
+
+                    self.stateCentering += 1
+                    print('third edge')
+
+        elif self.stateCentering == 3:
+            self.detectEdge()
+            if self.edgeFound == 2: # fourth (last) falling edge detected, compute center
+                self.playground.padEdge[self.stateCentering, 0] = self.xyz_global[0]
+                self.playground.padEdge[self.stateCentering, 1] = self.xyz_global[1]
+
+                self.playground.padCenter = [(self.playground.padEdge[2, 0] + self.playground.padEdge[2, 0])/2,
+                                             (self.playground.padEdge[3, 1] + self.playground.padEdge[3, 1])/2]
+
+                self.waypoints = np.append(self.waypoints, [self.playground.padCenter[0], self.playground.padCenter[1], self.default_height])
+
+                self.stateCentering += 1
+                print('fourth edge')
+
+        elif self.stateCentering == 4:
+            if not self.follow_waypoints():
+                self.centerReached = True
+                self.xyz_rate_cmd = [0, 0, 0]
+
+# ----------------------------------------------------------------------------------------#
+
     def stateMachine(self, scf):
         with MotionCommander(scf, default_height = self.default_height) as mc:
             while(self.is_not_close()):
@@ -313,7 +430,10 @@ class Charles:
 
                     # default height has been reached -> Next state
                     if self.xyz[2] >= self.default_height:
-                        self.state += 1
+                        #self.state += 1
+                        # tmp for trying centering -> uncomment previous line, comment next paragraph
+                        self.state = 3
+                        self.xyz_rate_cmd = np.array([0.05, 0, 0])
                         #print("Next state : " + str(self.state))
 
                 elif self.state == 1:
@@ -350,29 +470,31 @@ class Charles:
                     if not keep_searching:
                         self.state += 1
                         self.waypoints = None
+                        self.xyz_rate_cmd = 0.05*np.sign(self.xyz_rate_cmd)
                         #print("Next state : " + str(self.state))
 
                 elif self.state == 3:
-
-                    #---- Search center of the landing zone ----#
-
-                    if True:
+                    # ---- Search center of the landing zone ----#
+                    #print('Centering')
+                    self.centering()
+                    if self.centerReached and self.stateCentering == 4:
+                        self.stateCentering = 0
                         self.state += 1
+                        print('center reached')
                         #print("Next state : " + str(self.state))
 
                 elif self.state == 4:
-
-                    #---- Landing ----#
-
-                    if True:
-                        self.state = 0
+                    mc.land()
+                    if self.xyz[3]<0.1:
+                        time.sleep(5.)
+                        mc.take_off()
+                        self.state += 1
                         #print("Next state : " + str(self.state))
 
                 else:
                     print("Woooooops invalid state")
-                    
+
                 #print(self.xyz_rate_cmd[0])
-                
                 mc.start_linear_motion(self.xyz_rate_cmd[0], -self.xyz_rate_cmd[1], self.xyz_rate_cmd[2], self.rpy_rate_cmd[0])
 
                 time.sleep(self.Te_loop)
