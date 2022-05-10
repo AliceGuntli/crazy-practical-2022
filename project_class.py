@@ -1,8 +1,6 @@
 import logging
 import time
 
-import matplotlib.pyplot as plt
-
 import cflib.crtp
 from cflib.crazyflie import Crazyflie
 from cflib.crazyflie.log import LogConfig
@@ -67,13 +65,10 @@ class playground:
         self.H2 = 1 # m
         self.H3 = 1.5 # m
 
-        self.padHeight = 0.1
-        self.padMargin = 0.01
         self.padEdge = np.zeros((4, 2))
         self.padCenter = np.array([0., 0.])
 
-        #self.xyz0 = np.array([1, 0.4, self.padHeight])  # Inital position of the platform
-        self.xyz0 = np.array([0., 0., 0.])
+        self.xyz0 = np.array([1., 0.4, 0.1])
 
 ###################################### CHARLES AIRLINES ########################################
 
@@ -92,8 +87,6 @@ class Charles:
 
         # Position in the "take off platform" frame
         self.xyz = np.array([0., 0., 0.])
-        self.xyz_old = np.array([0., 0., 0.])
-        self.diff_xyz = np.array([0., 0., 0.])
         self.rpy = np.array([0., 0., 0.])
         self.vz = 0.
         self.az = 0.
@@ -115,16 +108,12 @@ class Charles:
         self.edgeFound = 0  # 0:not found, 1:rising edge, 2:falling edge
         self.edgeThresholdUp = 0.012
         self.edgeThresholdDown = 0.007
-        self.edgeTime = 0.
-        self.edgeTimeDelay = 1.5
         self.centerReached = False
         self.idx = 0
         self.queueZ = 50*[0.]
-        self.minZ = float('inf')
-        self.maxZ = float('-inf')
         self.diffZ = 0.
-        self.varPlot = [[],[]]
 
+        # log variables
         self.pos_var_list = ['stateEstimate.x',
                          'stateEstimate.y',
                          'stateEstimate.z',
@@ -350,10 +339,7 @@ class Charles:
 
 # ----------------------------------------------------------------------------------------#
     def detectEdge(self, edgeType = 0):
-        #print("%.3f"%self.xyz[2],";%.4f"%self.diffZ)
-        print("%.4f"%self.diffZ,"%.4f"%self.vz)
-        self.varPlot[0].append(self.diffZ)
-        self.varPlot[1].append(self.vz)
+        #print("%.4f"%self.diffZ,"%.4f"%self.vz)
         self.edgeFound = 0
         if (self.diffZ > self.edgeThresholdUp) and not self.edgeDetected:
             self.edgeDetected = True
@@ -373,68 +359,20 @@ class Charles:
         elif (self.diffZ <= self.edgeThresholdDown) and self.edgeDetected:
             self.edgeDetected = False
 
-
-
-        # if (time.time()-self.edgeTime) > self.edgeTimeDelay:
-        #     #print("detecting: %.5f" % self.diff_xyz[2])
-        #     # if self.idx:
-        #     #     print("detecting again")
-        #     # self.idx = 0
-        #     #print("diffZ = %.4f"%self.diffZ)
-        #
-        #     if self.diffZ > self.edgeThreshold:
-        #         self.edgeDetected = True
-        #         self.edgeTime = time.time()
-        #         #print("Edge detected")
-        #         #self.idx = 1
-
-    # def detectEdge(self, edgeType=0):
-    #
-    #     self.edgeDetected = False
-    #     if (time.time()-self.edgeTime) > self.edgeTimeDelay:
-    #         #print("detecting: %.5f" % self.diff_xyz[2])
-    #         if self.idx:
-    #             print("detecting again")
-    #         self.idx = 0
-    #
-    #         if self.diff_xyz[2] < -self.edgeThreshold:
-    #             self.edgeDetected = True
-    #             if edgeType == 0 or edgeType == 1:
-    #                 self.edgeFound = 1
-    #             else:
-    #                 self.edgeFound = -1
-    #         elif self.diff_xyz[2] > self.edgeThreshold:
-    #             self.edgeDetected = True
-    #             if edgeType == 0 or edgeType == 2:
-    #                 self.edgeFound = 2
-    #             else:
-    #                 self.edgeFound = -2
-    #         else:
-    #             self.edgeFound = 0
-    #
-    #         if self.edgeDetected:
-    #             print("edge type: ", self.edgeFound)
-    #             self.edgeTime = time.time()
-    #             self.idx = 1
-
-
 # ----------------------------------------------------------------------------------------#
 
     def centering(self):
         if self.stateCentering == 0:
             self.detectEdge()
             if self.edgeFound: # first falling edge detected, go back
-                if self.idx:
-                    self.playground.padEdge[self.stateCentering, 0] = self.xyz_global[0]
-                    self.playground.padEdge[self.stateCentering, 1] = self.xyz_global[1]
-                    time.sleep(0.2)
-                    self.xyz_rate_cmd *= -1
+                self.playground.padEdge[self.stateCentering, 0] = self.xyz_global[0]
+                self.playground.padEdge[self.stateCentering, 1] = self.xyz_global[1]
+                time.sleep(0.2)
+                self.xyz_rate_cmd *= -1
 
-                    self.stateCentering += 1
-                    self.idx = 0
-                    #print('first edge')
-                else:
-                    self.idx = 1
+                self.stateCentering += 1
+                self.idx = 0
+                #print('first edge')
 
         elif self.stateCentering == 1:
             self.detectEdge()
@@ -519,10 +457,10 @@ class Charles:
 
                     # default height has been reached -> Next state
                     if self.xyz[2] >= self.default_height:
-                        #self.state += 1
+                        self.state += 1
                         # tmp for trying centering -> uncomment previous line, comment next paragraph
-                        self.state = 3
-                        self.xyz_rate_cmd = np.array([0.2, 0., 0.])
+                        # self.state = 3
+                        # self.xyz_rate_cmd = np.array([0.2, 0., 0.])
                         #print("Next state : " + str(self.state))
 
                 elif self.state == 1:
@@ -555,17 +493,17 @@ class Charles:
 
                     # Return true if we reached last waypoint, false otherwise
                     keep_searching = self.follow_waypoints()
+                    self.detectEdge()
 
-                    if not keep_searching:
+                    if self.edgeFound:
                         self.state += 1
                         self.waypoints = None
-                        self.xyz_rate_cmd = 0.05*np.sign(self.xyz_rate_cmd)
+                        self.xyz_rate_cmd = 0.2*np.sign(self.xyz_rate_cmd)*self.xyz_rate_cmd/max(abs(self.xyz_rate_cmd))
                         #print("Next state : " + str(self.state))
 
                 elif self.state == 3:
                     # ---- Search center of the landing zone ----#
                     #print('Centering')
-                    #self.detectEdge(2)
                     self.centering()
 
                     if self.centerReached and self.stateCentering == 4:
@@ -575,6 +513,7 @@ class Charles:
                         #print("Next state : " + str(self.state))
 
                 elif self.state == 4:
+
                     mc.land()
                     #time.sleep(5.)
                     #mc.take_off()
@@ -616,13 +555,6 @@ class Charles:
             print("Goodbye :'(")
             self.log_position.stop()
             self.log_multiranger.stop()
-            plt.subplot(211)
-            plt.plot(self.varPlot[0])
-            plt.hold(True)
-            plt.plot([self.edgeThresholdUp]*len(self.varPlot[0]))
-            plt.plot([self.edgeThresholdDown]*len(self.varPlot[0]))
-            plt.subplot(212)
-            plt.plot(self.varPlot[1])
             
 ####################################### MAIN ##############################################
 
