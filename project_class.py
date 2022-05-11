@@ -21,6 +21,49 @@ MAIS POUR LA PARTIE RECHERCHE DE PLATEFORME CA M'ARRANGAIT
 """
 
 ###################################### PLAYGROUND ########################################
+"""        # Compute the error
+        error = current_waypoint - self.xyz_global
+        
+        kp = 1
+        MAX_SPEED = 0.1
+
+        # Compute speed command to reduce the error
+        self.xyz_rate_cmd = kp * error
+        
+        # Limit the speed of each component xyz
+        for i in range(3):
+            if self.xyz_rate_cmd[i] > MAX_SPEED:
+                self.xyz_rate_cmd[i] = MAX_SPEED
+
+            if self.xyz_rate_cmd[i] < -MAX_SPEED:
+                self.xyz_rate_cmd[i] = -MAX_SPEED
+
+        # Continue the searching path
+
+"""
+class P_controller:
+    def __init__(self, kp=1, MAX_SPEED=0.1):
+        self.kp = kp
+        self.MAX_SPEED = MAX_SPEED
+        self.u = np.array([0, 0, 0]) # command
+
+    def get_u(self, pt2go, actual_pos):
+        # Compute the error
+        error = pt2go - actual_pos
+
+        # Compute the Proportionnal command
+        self.u = self.kp * error
+
+        # Saturate the command
+        for i in range(3):
+            if self.u[i] > MAX_SPEED:
+                self.u[i] = MAX_SPEED
+
+            elif self.u[i] < -MAX_SPEED:
+                self.u[i] = -MAX_SPEED
+
+        return self.u
+        
 
 class playground:
     def __init__(self):
@@ -84,6 +127,8 @@ class Charles:
         # Position in the "take off platform" frame
         self.xyz = np.array([0, 0, 0])
         self.rpy = np.array([0, 0, 0])
+
+        self.speed_controller = P_controller()
         
         # Position in the global frame
         self.xyz_global = self.xyz0
@@ -281,24 +326,9 @@ class Charles:
         # Set current waypoint to reach
         current_waypoint = self.waypoints[0:3]
 
-        # Compute the error
-        error = current_waypoint - self.xyz_global
-        
-        kp = 1
-        MAX_SPEED = 0.1
+        # Compute speed rate command
+        self.xyz_rate_cmd = self.speed_controller.get_u(current_waypoint, self.xyz_global)
 
-        # Compute speed command to reduce the error
-        self.xyz_rate_cmd = kp * error
-        
-        # Limit the speed of each component xyz
-        for i in range(3):
-            if self.xyz_rate_cmd[i] > MAX_SPEED:
-                self.xyz_rate_cmd[i] = MAX_SPEED
-
-            if self.xyz_rate_cmd[i] < -MAX_SPEED:
-                self.xyz_rate_cmd[i] = -MAX_SPEED
-
-        # Continue the searching path
         return True
 
 #----------------------------------------------------------------------------------------#
