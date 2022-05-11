@@ -226,9 +226,9 @@ class Charles:
     def move_to_landing_zone(self):
         keep_flying = True
 
-        VELOCITY = 0.3
+        VELOCITY = 0.4
         MIN_Y = 0.5
-        MAX_DISTANCE = 2
+        MAX_DISTANCE = 1.5
         velocity_x = 0.0
         velocity_y = 0.0
 
