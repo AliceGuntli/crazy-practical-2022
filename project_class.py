@@ -74,9 +74,13 @@ class Charles:
         print("Bienvenue sur Charles Airline")
         
         self.uri = "radio://0/80/2M/E7E7E7E701"
-        self.default_height = 0.5
+        self.default_height = 0.3
 
         self.playground = playground()
+
+        # State machine obstacle avoidance while searching
+        self.move = 1
+        self.avoiding = False
         
         # Initial position in the global frame
         self.xyz0 = self.playground.xyz0
@@ -303,6 +307,113 @@ class Charles:
 
 #----------------------------------------------------------------------------------------#
 
+    def obstacle_avoidance_searching(self) :
+    
+        VELOCITY_X = 0.3
+        VELOCITY_Y = 0.2 #0.5
+
+        velocity_x = 0.0
+        velocity_y = 0.0
+
+        x_waypoint = 1.0
+        y_waypoint = -1.5
+
+        y_right = 0.3
+        y_left = -0.5
+
+        obs_y = 0.0
+
+        #Case right
+        if self.move == 0:  
+            if self.is_close_obs(self.range[4]) :
+                #print("Obstacle in view")
+                velocity_x = 2*VELOCITY_X
+                velocity_y = 0
+                obs_y = self.xyz[1]
+                self.avoiding = True
+                
+            elif self.avoiding : 
+                #print("Avoiding")
+                if self.xyz[1] < (obs_y + 1.0) :
+                    #print("Avoiding 2")
+                    velocity_x = 0
+                    velocity_y = VELOCITY_Y
+                else :
+                    self.avoiding = False
+
+            elif (not self.is_close_obs(self.range[1]) and self.xyz[0] > (x_waypoint+0.1) and self.avoiding == False):
+                #print("Back to the trajectory")
+                velocity_x = -2*VELOCITY_X
+                velocity_y = 0
+                
+
+            else :
+                #print("Straight")
+                velocity_x = 0
+                velocity_y = VELOCITY_Y
+
+            if self.xyz[1] > y_waypoint :
+                velocity_x = 0
+                velocity_y = 0
+
+        #Case forward
+        if self.move == 1 :
+            if (self.is_close_obs(self.range[0]) and (self.xyz[1] >= 1.0)) : #A changer
+                print("I go left")
+                velocity_y = -VELOCITY_Y
+                velocity_x = 0
+            
+            elif (self.is_close_obs(self.range[0]) and (self.xyz[1] < 1.0)) : #A changer
+                print("I go right")
+                velocity_x = 0
+                velocity_y = VELOCITY_Y
+            
+            else :
+                print("I go forward")
+                velocity_x = VELOCITY_X
+                velocity_y = 0
+
+            if self.xyz[0] > x_waypoint :
+                print("I'm at waypoint")
+                velocity_x = 0
+                velocity_y = 0
+
+        #Case left
+        if self.move == 2:   #Case side
+            if self.is_close_obs(self.range[3]):
+                #print("Obstacle in view")
+                velocity_x = 2*VELOCITY_X
+                velocity_y = 0
+                obs_y = self.xyz[1]
+                self.avoiding = True
+                
+
+            elif self.avoiding : 
+                if self.xyz[1] > (obs_y - 1.0) :
+                    #print("Avoiding")
+                    velocity_x = 0
+                    velocity_y = -VELOCITY_Y
+                else :
+                    self.avoiding = False
+
+            elif (not self.is_close_obs(self.range[1]) and self.xyz[0] > (x_waypoint+0.1) and self.avoiding == False):
+                #print("Back to the trajectory")
+                velocity_x = -2*VELOCITY_X
+                velocity_y = 0
+                
+
+            else :
+                #print("Straight")
+                velocity_x = 0
+                velocity_y = -VELOCITY_Y
+
+            if self.xyz[1] < y_waypoint:
+                velocity_x = 0
+                velocity_y = 0
+
+        self.xyz_rate_cmd = [velocity_x, velocity_y, 0]
+#------------------------------------------------------------------------------------------#
+
     def stateMachine(self, scf):
         with MotionCommander(scf, default_height = self.default_height) as mc:
             while(self.is_not_close()):
@@ -336,16 +447,18 @@ class Charles:
                         #print("Next state : " + str(self.state))
 
                 elif self.state == 2:
+                    
+                    self.obstacle_avoidance_searching()
 
                     #---- Search landing zone ----#
-                    if self.waypoints is None and keep_searching == True:
+                    #if self.waypoints is None and keep_searching == True:
                         # Wait to compute waypoints (searching path)
-                        self.xyz_rate_cmd = np.array([0, 0, 0])
-                        self.set_waypoints()
-                        print("Setting waypoints")
+                    #    self.xyz_rate_cmd = np.array([0, 0, 0])
+                    #    self.set_waypoints()
+                    #    print("Setting waypoints")
 
                     # Return true if we reached last waypoint, false otherwise
-                    keep_searching = self.follow_waypoints()
+                    #keep_searching = self.follow_waypoints()
 
                     if not keep_searching:
                         self.state += 1
@@ -371,7 +484,7 @@ class Charles:
                 else:
                     print("Woooooops invalid state")
                     
-                #print(self.xyz_rate_cmd[0])
+                #print(self.xyz_rate_cmd[1])
                 
                 mc.start_linear_motion(self.xyz_rate_cmd[0], -self.xyz_rate_cmd[1], self.xyz_rate_cmd[2], self.rpy_rate_cmd[0])
 
