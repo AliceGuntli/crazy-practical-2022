@@ -126,8 +126,16 @@ class Charles:
         self.playground = playground()
 
         # State machine obstacle avoidance while searching
-        self.move = 1
+        self.move = 2
         self.avoiding = False
+        self.obs_y = 0.0
+        #self.current_waypoint = [0.0, 0.0]
+        #Right - forward - left
+        #self.waypoints_tests = [[0.0, 2.0], [0.5, 2.0], [0.5, 0.0]]
+        #Left - forward - right
+        self.waypoints_tests = [[0.0, -1.5], [0.5, -1.5], [0.5, 0.0]]
+        #Left
+        #self.waypoints_tests = [[0.0, -2.0]]
         
         # Initial position in the global frame
         self.xyz0 = self.playground.xyz0
@@ -369,7 +377,7 @@ class Charles:
 
 #----------------------------------------------------------------------------------------#
 
-    def obstacle_avoidance_searching(self) :
+    def obstacle_avoidance_searching(self, current_waypoint) :
     
         VELOCITY_X = 0.3
         VELOCITY_Y = 0.2 #0.5
@@ -377,68 +385,74 @@ class Charles:
         velocity_x = 0.0
         velocity_y = 0.0
 
-        x_waypoint = 1.0
-        y_waypoint = -1.5
+        x_waypoint = current_waypoint[0]
+        y_waypoint = current_waypoint[1]
+        #print("x waypoint : ", x_waypoint)
+        #print("y waypoint : ", y_waypoint)
 
         y_right = 0.3
         y_left = -0.5
 
-        obs_y = 0.0
+        reached = False
 
         #Case right
         if self.move == 0:  
+            #print(self.xyz[0])
             if self.is_close_obs(self.range[4]) :
-                #print("Obstacle in view")
+                print("Obstacle in view")
                 velocity_x = 2*VELOCITY_X
                 velocity_y = 0
-                obs_y = self.xyz[1]
+                self.obs_y = self.xyz[1]
                 self.avoiding = True
                 
             elif self.avoiding : 
-                #print("Avoiding")
-                if self.xyz[1] < (obs_y + 1.0) :
+                print("Avoiding")
+                if self.xyz[1] < (self.obs_y + 1.0) :
                     #print("Avoiding 2")
                     velocity_x = 0
                     velocity_y = VELOCITY_Y
                 else :
                     self.avoiding = False
 
-            elif (not self.is_close_obs(self.range[1]) and self.xyz[0] > (x_waypoint+0.1) and self.avoiding == False):
-                #print("Back to the trajectory")
+            elif (not self.is_close_obs(self.range[1]) and self.xyz[0] > (x_waypoint+0.05) and self.avoiding == False):
+                print("Back to the trajectory")
                 velocity_x = -2*VELOCITY_X
                 velocity_y = 0
                 
 
             else :
-                #print("Straight")
+                print("Straight")
                 velocity_x = 0
                 velocity_y = VELOCITY_Y
 
             if self.xyz[1] > y_waypoint :
                 velocity_x = 0
                 velocity_y = 0
+                reached = True
 
         #Case forward
         if self.move == 1 :
             if (self.is_close_obs(self.range[0]) and (self.xyz[1] >= 1.0)) : #A changer
-                print("I go left")
+                #print("I go left")
                 velocity_y = -VELOCITY_Y
                 velocity_x = 0
             
             elif (self.is_close_obs(self.range[0]) and (self.xyz[1] < 1.0)) : #A changer
-                print("I go right")
+                #print("I go right")
                 velocity_x = 0
                 velocity_y = VELOCITY_Y
             
             else :
-                print("I go forward")
+                #print("I go forward")
                 velocity_x = VELOCITY_X
                 velocity_y = 0
 
             if self.xyz[0] > x_waypoint :
-                print("I'm at waypoint")
+                #print("I'm at waypoint")
                 velocity_x = 0
                 velocity_y = 0
+                reached = True
+                
 
         #Case left
         if self.move == 2:   #Case side
@@ -446,19 +460,19 @@ class Charles:
                 #print("Obstacle in view")
                 velocity_x = 2*VELOCITY_X
                 velocity_y = 0
-                obs_y = self.xyz[1]
+                self.obs_y = self.xyz[1]
                 self.avoiding = True
                 
 
             elif self.avoiding : 
-                if self.xyz[1] > (obs_y - 1.0) :
+                if self.xyz[1] > (self.obs_y - 1.0) :
                     #print("Avoiding")
                     velocity_x = 0
                     velocity_y = -VELOCITY_Y
                 else :
                     self.avoiding = False
 
-            elif (not self.is_close_obs(self.range[1]) and self.xyz[0] > (x_waypoint+0.1) and self.avoiding == False):
+            elif (not self.is_close_obs(self.range[1]) and self.xyz[0] > (x_waypoint+0.05) and self.avoiding == False):
                 #print("Back to the trajectory")
                 velocity_x = -2*VELOCITY_X
                 velocity_y = 0
@@ -470,10 +484,14 @@ class Charles:
                 velocity_y = -VELOCITY_Y
 
             if self.xyz[1] < y_waypoint:
+                #print("Reached")
                 velocity_x = 0
                 velocity_y = 0
+                reached = True
+                
 
         self.xyz_rate_cmd = [velocity_x, velocity_y, 0]
+        return reached
 #------------------------------------------------------------------------------------------#
 
 # ----------------------------------------------------------------------------------------#
@@ -623,7 +641,19 @@ class Charles:
 
                 elif self.state == 2:
                     
-                    self.obstacle_avoidance_searching()
+                    change_waypoint = False
+
+                    #print(self.waypoints_tests[0])
+                    change_waypoint = self.obstacle_avoidance_searching(self.waypoints_tests[0])
+
+                    if change_waypoint :
+                        print("Pop")
+                        self.move = self.move - 1
+                        if self.move == -1 :
+                            self.move = 0
+                        self.avoiding = False
+                        self.waypoints_tests.pop(0)
+
 
                     #---- Search landing zone ----#
                     #if self.waypoints is None and keep_searching == True:
