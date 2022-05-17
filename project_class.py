@@ -21,10 +21,53 @@ MAIS POUR LA PARTIE RECHERCHE DE PLATEFORME CA M'ARRANGAIT
 """
 
 ###################################### PLAYGROUND ########################################
+"""        # Compute the error
+        error = current_waypoint - self.xyz_global
+        
+        kp = 1
+        MAX_SPEED = 0.1
+
+        # Compute speed command to reduce the error
+        self.xyz_rate_cmd = kp * error
+        
+        # Limit the speed of each component xyz
+        for i in range(3):
+            if self.xyz_rate_cmd[i] > MAX_SPEED:
+                self.xyz_rate_cmd[i] = MAX_SPEED
+
+            if self.xyz_rate_cmd[i] < -MAX_SPEED:
+                self.xyz_rate_cmd[i] = -MAX_SPEED
+
+        # Continue the searching path
+
+"""
+class P_controller:
+    def __init__(self, kp=1, MAX_SPEED=0.1):
+        self.kp = kp
+        self.MAX_SPEED = MAX_SPEED
+        self.u = np.array([0, 0, 0]) # command
+
+    def get_u(self, pt2go, actual_pos):
+        # Compute the error
+        error = pt2go - actual_pos
+
+        # Compute the Proportionnal command
+        self.u = self.kp * error
+
+        # Saturate the command
+        for i in range(3):
+            if self.u[i] > MAX_SPEED:
+                self.u[i] = MAX_SPEED
+
+            elif self.u[i] < -MAX_SPEED:
+                self.u[i] = -MAX_SPEED
+
+        return self.u
+        
 
 class playground:
     def __init__(self):
-        """        
+        """
                             W
         ##########################################
         #                   L               h    #
@@ -64,7 +107,11 @@ class playground:
         self.H1 = 1 # m
         self.H2 = 1 # m
         self.H3 = 1.5 # m
-        self.xyz0 = np.array([1, 0.4, 0.1]) # Inital position of the platform
+
+        self.padEdge = np.zeros((4, 2))
+        self.padCenter = np.array([0., 0.])
+
+        self.xyz0 = np.array([1., 0.4, 0.1])
 
 ###################################### CHARLES AIRLINES ########################################
 
@@ -72,7 +119,7 @@ class Charles:
     def __init__(self):
 
         print("Bienvenue sur Charles Airline")
-        
+
         self.uri = "radio://0/80/2M/E7E7E7E701"
         self.default_height = 0.3
 
@@ -86,26 +133,42 @@ class Charles:
         self.xyz0 = self.playground.xyz0
 
         # Position in the "take off platform" frame
-        self.xyz = np.array([0, 0, 0])
-        self.rpy = np.array([0, 0, 0])
-        
+        self.speed_controller = P_controller()
+        self.xyz = np.array([0., 0., 0.])
+        self.rpy = np.array([0., 0., 0.])
+        self.vz = 0.
+        self.az = 0.
         # Position in the global frame
         self.xyz_global = self.xyz0
-            
+
         # self.range = [front, back, up, left, right, zrange]
         self.range = np.array([0, 0, 0, 0, 0, 0])
         self.xyz_rate_cmd = np.array([0, 0, 0])
+        self.xyz_rate_cmd_old = np.array([0, 0, 0])
         self.rpy_rate_cmd = np.array([0, 0, 0])
 
         self.state = 0
-        self.min_dist = 300 # Distance to stop flying 
-        
+
+        # variable related to landing pad
+        self.stateCentering = 0
+        self.edgeDetected = False
+        self.edgeFound = 0  # 0:not found, 1:rising edge, 2:falling edge
+        self.edgeThresholdUp = 0.012
+        self.edgeThresholdDown = 0.007
+        self.centerReached = False
+        self.idx = 0
+        self.queueZ = 50*[0.]
+        self.diffZ = 0.
+
+        # log variables
         self.pos_var_list = ['stateEstimate.x',
                          'stateEstimate.y',
                          'stateEstimate.z',
-                         'stabilizer.roll',
-                         'stabilizer.pitch',
-                         'stabilizer.yaw']
+                         'stateEstimate.vz',
+                         'stateEstimate.az']
+                         # 'stabilizer.roll',
+                         # 'stabilizer.pitch',
+                         # 'stabilizer.yaw']
 
         self.multi_var_list = ['range.front',
                          'range.back',
@@ -116,13 +179,17 @@ class Charles:
 
         # Searching path variables
         self.waypoints = None
-        # Constants : 
+
+        # Constants :
+        self.min_dist = 300  # Distance to stop flying
+
         self.l = 0.1 # marge de chaque côté en y
         self.L = self.playground.W - 2*self.l # Largeur des allers retours en y
         self.h = 0.1 # marge de chaque côté en x
         self.N = 5  # Nombre d'allers
         self.H = (self.playground.H3 - 2 * self.h)/(self.N - 1) # Ecart x entre chaque aller
-                         
+
+
         self.Te_loop = 0.01 # Cadence la boucle principale EN SECONDES
         self.Te_log = 10 # Cadence la réception des données EN !!! MILLISECONDES !!!
 
@@ -131,7 +198,7 @@ class Charles:
 
         print("Log Configuration ..")
         self.setLog()
-        
+
 #----------------------------------------------------------------------------------------#
 
     def is_not_close(self):
@@ -154,7 +221,7 @@ class Charles:
 
         self.log_position = LogConfig(name='Position', period_in_ms=self.Te_log)
         self.log_multiranger = LogConfig(name='Multiranger', period_in_ms=self.Te_log)
-        
+
         for var in self.pos_var_list:
             self.log_position.add_variable(var, 'float')
 
@@ -165,9 +232,19 @@ class Charles:
 
     def log_pos_callback(self, timestamp, data, logconf):
         # Get x,y,z and roll, pitch, yaw values and save it into self variables
+        self.xyz_old = self.xyz
         self.xyz = np.array([data[self.pos_var_list[0]], -data[self.pos_var_list[1]], data[self.pos_var_list[2]]])
         self.xyz_global = self.xyz + self.xyz0 # Position in the global frame
-        self.pry = np.array([data[self.pos_var_list[3]], data[self.pos_var_list[4]], data[self.pos_var_list[5]]])
+        self.diff_xyz = self.xyz - self.xyz_old
+        self.queueZ.pop(0)
+        self.queueZ.append(self.xyz[2]**3)
+        # self.minZ = min(self.queueZ)
+        # self.maxZ = max(self.queueZ)
+        self.diffZ = max(self.queueZ)-min(self.queueZ)
+
+        #self.pry = np.array([data[self.pos_var_list[3]], data[self.pos_var_list[4]], data[self.pos_var_list[5]]])
+        self.vz = data[self.pos_var_list[3]]
+        self.az = data[self.pos_var_list[4]]
 
 #----------------------------------------------------------------------------------------#
 
@@ -179,15 +256,15 @@ class Charles:
                       data[self.multi_var_list[3]],
                       data[self.multi_var_list[4]],
                       data[self.multi_var_list[5]]]
-        
+
 #----------------------------------------------------------------------------------------#
 
     def move_to_landing_zone(self):
         keep_flying = True
 
-        VELOCITY = 0.4
+        VELOCITY = 0.3
         MIN_Y = 0.5
-        MAX_DISTANCE = 1.5
+        MAX_DISTANCE = 2
         velocity_x = 0.0
         velocity_y = 0.0
 
@@ -259,7 +336,7 @@ class Charles:
             # Mirroir + décalage de 2*l + L
             for i in range(int(len(self.waypoints)/3)):
                 self.waypoints[3*i+1] = -self.waypoints[3*i+1] + 2*self.l + self.L
-                
+
 
 #----------------------------------------------------------------------------------------#
 
@@ -268,7 +345,7 @@ class Charles:
         # Min distance to consider point as reached
         epsilon = 0.05 # m
         modulus_error = np.sum((self.waypoints[0:3] - self.xyz_global)**2) # Modulus of the error [m^2]
-        
+
         # Check if the waypoint has been reached
         if modulus_error < epsilon**2:
             # If yes, check if it was the last waypoint in the list
@@ -276,33 +353,18 @@ class Charles:
             if len(self.waypoints) == 3:
                 # If yes stop the search
                 self.waypoints = None
-                
+
                 return False
-  
+
             # Otherwise remove the first waypoint from the list
             self.waypoints = self.waypoints[3:len(self.waypoints)]
 
         # Set current waypoint to reach
         current_waypoint = self.waypoints[0:3]
 
-        # Compute the error
-        error = current_waypoint - self.xyz_global
-        
-        kp = 1
-        MAX_SPEED = 0.1
+        # Compute speed rate command
+        self.xyz_rate_cmd = self.speed_controller.get_u(current_waypoint, self.xyz_global)
 
-        # Compute speed command to reduce the error
-        self.xyz_rate_cmd = kp * error
-        
-        # Limit the speed of each component xyz
-        for i in range(3):
-            if self.xyz_rate_cmd[i] > MAX_SPEED:
-                self.xyz_rate_cmd[i] = MAX_SPEED
-
-            if self.xyz_rate_cmd[i] < -MAX_SPEED:
-                self.xyz_rate_cmd[i] = -MAX_SPEED
-
-        # Continue the searching path
         return True
 
 #----------------------------------------------------------------------------------------#
@@ -414,6 +476,116 @@ class Charles:
         self.xyz_rate_cmd = [velocity_x, velocity_y, 0]
 #------------------------------------------------------------------------------------------#
 
+# ----------------------------------------------------------------------------------------#
+    def detectEdge(self, edgeType = 0):
+        #print("%.4f"%self.diffZ,"%.4f"%self.vz)
+        self.edgeFound = 0
+        if (self.diffZ > self.edgeThresholdUp) and not self.edgeDetected:
+            self.edgeDetected = True
+
+            if self.vz > 0.1:
+                if (edgeType == 0 or edgeType == 1):
+                    self.edgeFound = 1
+                else:
+                    self.edgeFound = -1
+            else:
+                if (edgeType == 0 or edgeType == 2):
+                    self.edgeFound = 2
+                else:
+                    self.edgeFound = -2
+            #print(self.edgeFound)
+
+        elif (self.diffZ <= self.edgeThresholdDown) and self.edgeDetected:
+            self.edgeDetected = False
+
+# ----------------------------------------------------------------------------------------#
+
+    def centering(self):
+        if self.stateCentering == 0:
+            self.detectEdge()
+            if self.edgeFound: # first falling edge detected, go back
+                self.playground.padEdge[self.stateCentering, 0] = self.xyz_global[0]
+                self.playground.padEdge[self.stateCentering, 1] = self.xyz_global[1]
+                time.sleep(0.2)
+                self.xyz_rate_cmd *= -1
+
+                self.stateCentering += 1
+                self.idx = 0
+                #print('first edge')
+
+        elif self.stateCentering == 1:
+            self.detectEdge()
+            if self.edgeFound: # second falling edge detected, compute pseudo center and add to waypoint
+                if self.idx:
+                    self.playground.padEdge[self.stateCentering, 0] = self.xyz_global[0]
+                    self.playground.padEdge[self.stateCentering, 1] = self.xyz_global[1]
+
+                    self.playground.padCenter = [(self.playground.padEdge[0, 0] + self.playground.padEdge[1, 0])/2,
+                                                 (self.playground.padEdge[0, 1] + self.playground.padEdge[1, 1])/2]
+                    time.sleep(0.2)
+
+                    self.waypoints = np.array([])
+                    self.waypoints = np.append(self.waypoints, [self.playground.padCenter[0], self.playground.padCenter[1], self.default_height])
+
+                    self.xyz_rate_cmd_old = self.xyz_rate_cmd # for later use
+
+                    self.stateCentering += 1
+                    self.idx = 0
+                    #print('second edge')
+                    #print("Pad center = ", self.playground.padCenter)
+                else:
+                    self.idx = 1
+
+        elif self.stateCentering == 2:
+            self.detectEdge()
+            if not self.centerReached:
+                if not self.follow_waypoints():
+                    self.centerReached = True
+                    self.xyz_rate_cmd = np.array([self.xyz_rate_cmd_old[1], self.xyz_rate_cmd_old[0], self.xyz_rate_cmd_old[2]])
+                    #print('pseudo center')
+            else:
+                if self.edgeFound: # third falling edge detected, go back
+                    self.playground.padEdge[self.stateCentering, 0] = self.xyz_global[0]
+                    self.playground.padEdge[self.stateCentering, 1] = self.xyz_global[1]
+
+                    self.centerReached = False
+
+                    time.sleep(0.2)
+                    self.xyz_rate_cmd *= -1
+
+                    self.stateCentering += 1
+                    #print('third edge')
+
+        elif self.stateCentering == 3:
+            self.detectEdge()
+            if self.edgeFound: # fourth (last) falling edge detected, compute center
+                if self.idx:
+                    self.playground.padEdge[self.stateCentering, 0] = self.xyz_global[0]
+                    self.playground.padEdge[self.stateCentering, 1] = self.xyz_global[1]
+
+                    if abs(self.xyz_rate_cmd[0]) > abs(self.xyz_rate_cmd[1]):
+                        self.playground.padCenter[0] = ((self.playground.padEdge[2, 0] + self.playground.padEdge[3, 0])/2)
+                    else:
+                        self.playground.padCenter[1] = ((self.playground.padEdge[2, 1] + self.playground.padEdge[3, 1])/2)
+
+                    time.sleep(0.2)
+                    self.waypoints = np.array([])
+                    self.waypoints = np.append(self.waypoints, [self.playground.padCenter[0], self.playground.padCenter[1],
+                                                                self.default_height])
+
+                    self.stateCentering += 1
+                    self.idx = 0
+                    #print('fourth edge')
+                else:
+                    self.idx = 1
+
+        elif self.stateCentering == 4:
+            if not self.follow_waypoints():
+                self.centerReached = True
+                self.xyz_rate_cmd = [0, 0, 0]
+
+# ----------------------------------------------------------------------------------------#
+
     def stateMachine(self, scf):
         with MotionCommander(scf, default_height = self.default_height) as mc:
             while(self.is_not_close()):
@@ -425,12 +597,15 @@ class Charles:
                     # default height has been reached -> Next state
                     if self.xyz[2] >= self.default_height:
                         self.state += 1
+                        # tmp for trying centering -> uncomment previous line, comment next paragraph
+                        # self.state = 3
+                        # self.xyz_rate_cmd = np.array([0.2, 0., 0.])
                         #print("Next state : " + str(self.state))
 
                 elif self.state == 1:
 
                     #---- Fly to zone 2 ----#
-                    
+
                     # self.range = [front, back, up, left, right, zrange]
                     #print("Front main : ", self.range[0])
                     #print("Left : ", self.range[3])
@@ -439,7 +614,7 @@ class Charles:
 
                     #keep_flying = self.move_to_landing_zone()
                     keep_flying = False
-                    
+
                     if not keep_flying:
                         print('Safe arrival in Landing zone ! Let the scan begin')
                         keep_searching = True
@@ -458,28 +633,33 @@ class Charles:
                     #    print("Setting waypoints")
 
                     # Return true if we reached last waypoint, false otherwise
-                    #keep_searching = self.follow_waypoints()
+                    keep_searching = self.follow_waypoints()
+                    self.detectEdge()
 
-                    if not keep_searching:
+                    if self.edgeFound:
                         self.state += 1
                         self.waypoints = None
+                        self.xyz_rate_cmd = 0.2*np.sign(self.xyz_rate_cmd)*self.xyz_rate_cmd/max(abs(self.xyz_rate_cmd))
                         #print("Next state : " + str(self.state))
 
                 elif self.state == 3:
+                    # ---- Search center of the landing zone ----#
+                    #print('Centering')
+                    self.centering()
 
-                    #---- Search center of the landing zone ----#
-
-                    if True:
+                    if self.centerReached and self.stateCentering == 4:
+                        self.stateCentering = 0
                         self.state += 1
+                        print('center reached')
                         #print("Next state : " + str(self.state))
 
                 elif self.state == 4:
 
-                    #---- Landing ----#
-
-                    if True:
-                        self.state = 0
-                        #print("Next state : " + str(self.state))
+                    mc.land()
+                    #time.sleep(5.)
+                    #mc.take_off()
+                    #self.state += 1
+                    #print("Next state : " + str(self.state))
 
                 else:
                     print("Woooooops invalid state")
