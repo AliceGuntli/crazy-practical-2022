@@ -104,7 +104,7 @@ class playground:
                         ^
                         y0
         """
-        self.W = 1 # m
+        self.W = 2 # m
         self.H1 = 1 # m
         self.H2 = 1 # m
         self.H3 = 1.5 # m
@@ -114,7 +114,8 @@ class playground:
         self.padEdge = np.zeros((4, 2))
         self.padCenter = np.array([0., 0.])
 
-        self.xyz0 = np.array([1, 0.4, 0.1]) # Inital position of the platform
+        #self.xyz0 = np.array([1, 0.4, 0.1]) # Inital position of the platform
+        self.xyz0 = np.array([0.3, 0.7, 0.1])
 ###################################### CHARLES AIRLINES ########################################
 
 class Charles:
@@ -126,8 +127,11 @@ class Charles:
 
         self.playground = playground()
 
+        # Attributes for moving to landing zone
+        self.border = False
+
         # State machine obstacle avoidance while searching
-        self.move = 2
+        self.move = 0
         self.avoiding = False
         self.obs_y = 0.0
         #self.current_waypoint = [0.0, 0.0]
@@ -143,6 +147,7 @@ class Charles:
         
         # Initial position in the global frame
         self.xyz0 = self.playground.xyz0
+        
 
         # Position in the "take off platform" frame
         self.xyz = np.array([0., 0., 0.])
@@ -279,38 +284,46 @@ class Charles:
     def move_to_landing_zone(self):
         keep_flying = True
 
+        # Some constants to modify
         VELOCITY = 0.3
         MIN_Y = 0.5
-        MAX_DISTANCE = 2
+        MAX_DISTANCE = 1
+
+        # Commands
         velocity_x = 0.0
         velocity_y = 0.0
 
-        if self.is_close_obs(self.range[0]):  # There is an obstacle in front
+        # There is an obstacle in front
+        if self.is_close_obs(self.range[0]):  
             # print("Front : ", self.range[0])
-            if self.xyz[1] < MIN_Y:
+
+            # If near the border, avoid by the right
+            if ((self.xyz[1] + self.xyz0[1]) < MIN_Y) or (self.border):
+                self.border = True
                 velocity_x = 0.0
                 velocity_y = 2 * VELOCITY
 
+            # If not near the border, avoid by the left
             else:
                 velocity_x = 0.0
                 velocity_y = -2 * VELOCITY
 
-        else:  # If no obstacle, go forward
+        # If no obstacle, go forward
+        else:  
             # print("Straight")
             velocity_x = VELOCITY
             velocity_y = 0.0
 
+        # Arrived in searching zone
         if (self.xyz[0] > MAX_DISTANCE):
             keep_flying = False
             velocity_x = 0.0
             velocity_y = 0.0
 
-            # to be removed maybe...
-        if self.is_close_obs(self.range[2]):
-            keep_flying = False
-
+        # Send command
         self.xyz_rate_cmd = [velocity_x, velocity_y, 0]
 
+        # Return flase if in searching zone, true otherwise
         return keep_flying
 
     # ----------------------------------------------------------------------------------------#
@@ -407,16 +420,16 @@ class Charles:
 
         #Case right
         if self.move == 0:  
-            #print(self.xyz[0])
+            print("Case right")
             if self.is_close_obs(self.range[4]) :
-                print("Obstacle in view")
+                #print("Obstacle in view")
                 velocity_x = 2*VELOCITY_X
                 velocity_y = 0
                 self.obs_y = self.xyz[1]
                 self.avoiding = True
                 
             elif self.avoiding : 
-                print("Avoiding")
+                #print("Avoiding")
                 if self.xyz[1] < (self.obs_y + 1.0) :
                     #print("Avoiding 2")
                     velocity_x = 0
@@ -424,14 +437,14 @@ class Charles:
                 else :
                     self.avoiding = False
 
-            elif (not self.is_close_obs(self.range[1]) and self.xyz[0] > (x_waypoint+0.05) and self.avoiding == False):
+            elif (not self.is_close_obs(self.range[1]) and self.xyz[0] > (x_waypoint+0.1) and self.avoiding == False):
                 print("Back to the trajectory")
-                velocity_x = -2*VELOCITY_X
+                velocity_x = -VELOCITY_X
                 velocity_y = 0
                 
 
             else :
-                print("Straight")
+                #print("Straight")
                 velocity_x = 0
                 velocity_y = VELOCITY_Y
 
@@ -442,6 +455,7 @@ class Charles:
 
         #Case forward
         if self.move == 1 :
+            print("Case forward")
             if (self.is_close_obs(self.range[0]) and (self.xyz[1] >= 1.0)) : #A changer
                 #print("I go left")
                 velocity_y = -VELOCITY_Y
@@ -466,6 +480,7 @@ class Charles:
 
         #Case left
         if self.move == 2:   #Case side
+            print("Case left")
             if self.is_close_obs(self.range[3]):
                 #print("Obstacle in view")
                 velocity_x = 2*VELOCITY_X
@@ -482,9 +497,9 @@ class Charles:
                 else :
                     self.avoiding = False
 
-            elif (not self.is_close_obs(self.range[1]) and self.xyz[0] > (x_waypoint+0.05) and self.avoiding == False):
-                #print("Back to the trajectory")
-                velocity_x = -2*VELOCITY_X
+            elif (not self.is_close_obs(self.range[1]) and self.xyz[0] > (x_waypoint+0.1) and self.avoiding == False):
+                print("Back to the trajectory")
+                velocity_x = -VELOCITY_X
                 velocity_y = 0
                 
 
@@ -504,7 +519,7 @@ class Charles:
         return reached
 #------------------------------------------------------------------------------------------#
 
-    def back_to_landing(self) :
+    def back_to_start(self) :
 
         VELOCITY_X = 0.3
         VELOCITY_Y = 0.2 #0.5
@@ -564,14 +579,14 @@ class Charles:
             # y < 0 : go right while avoiding obstacle
             else :
                 if self.is_close_obs(self.range[4]) :
-                    print("Obstacle in view")
+                    #print("Obstacle in view")
                     velocity_x = 2*VELOCITY_X
                     velocity_y = 0
                     self.obs_y = self.xyz[1]
                     self.avoiding = True
                 
                 elif self.avoiding : 
-                    print("Avoiding")
+                    #print("Avoiding")
                     if self.xyz[1] < (self.obs_y + 1.0) :
                         #print("Avoiding 2")
                         velocity_x = 0
@@ -580,13 +595,13 @@ class Charles:
                         self.avoiding = False
 
                 elif (not self.is_close_obs(self.range[1]) and self.xyz[0] > 0.05 and self.avoiding == False):
-                    print("Back to the trajectory")
+                    #print("Back to the trajectory")
                     velocity_x = -2*VELOCITY_X
                     velocity_y = 0
                     
 
                 else :
-                    print("Straight")
+                    #print("Straight")
                     velocity_x = 0
                     velocity_y = VELOCITY_Y
                 
@@ -715,7 +730,7 @@ class Charles:
     def stateMachine(self, scf):
         with MotionCommander(scf, default_height=self.default_height) as mc:
             while (self.is_not_close()):
-                print(self.range[2])
+                #print(self.range[2])
 
                 if self.state == 0:
 
@@ -725,7 +740,7 @@ class Charles:
                     if self.xyz[2] >= self.default_height:
                         self.state += 1
                         
-                        self.state += 1
+                        #self.state += 1
                         #print("Next state : " + str(self.state))
 
                 elif self.state == 1:
@@ -733,13 +748,9 @@ class Charles:
                     #---- Fly to zone 2 ----#
                     
                     # self.range = [front, back, up, left, right, zrange]
-                    # print("Front main : ", self.range[0])
-                    # print("Left : ", self.range[3])
-                    # print("Right : ", self.range[4])
-                    # print("Up : ", self.range[2])
 
-                    # keep_flying = self.move_to_landing_zone()
-                    keep_flying = False
+                    keep_flying = self.move_to_landing_zone()
+                    #keep_flying = False
                     
                     if not keep_flying:
                         print('Safe arrival in Landing zone ! Let the scan begin')
@@ -756,34 +767,40 @@ class Charles:
                         self.xyz_rate_cmd = np.array([0, 0, 0])
                         self.set_waypoints()
                         print("Setting waypoints")
+                        print(self.waypoints)
                     
                     change_waypoint = False
 
-                    change_waypoint = self.obstacle_avoidance_searching(self.waypoints_tests[0])
+                    #change_waypoint = self.obstacle_avoidance_searching(self.waypoints[0])
                     # From global frame to drone frame
                     initial_pos = [self.xyz0[0], self.xyz0[1]]
-                    waypoint_drone = self.waypoints[0]-initial_pos
+                    waypoint_drone = [self.waypoints[0]-initial_pos[0], self.waypoints[1]-initial_pos[1]]
+                    #print(waypoint_drone)
                     change_waypoint = self.obstacle_avoidance_searching(waypoint_drone)
                     
 
                     if change_waypoint :
-                        print("Pop")
+                        #print("Pop")
                         self.avoiding = False
-                        self.waypoints.pop(0)
-                        waypoint_drone = self.waypoints[0]-initial_pos
+                        #np.delete(self.waypoints, [0,1,2])
+                        self.waypoints = self.waypoints[3:len(self.waypoints)]
+                        #waypoint_drone = self.waypoints[0]-initial_pos
+                        waypoint_drone = [self.waypoints[0]-initial_pos[0], self.waypoints[1]-initial_pos[1]]
 
                         # If right or left before, forward now
                         if self.move != 1 :
                             self.move = 1
 
                         # If forward before, determine right or left frome y coordinate of next waypoint in drone frame
-                        if waypoint_drone[1] < 0 :
-                            self.move = 2
                         else :
-                            self.move = 0
+                            if waypoint_drone[1] < 0 :
+                                self.move = 2
+                            else :
+                                self.move = 0
                         
                     # Return true if we reached last waypoint, false otherwise
-                    keep_searching = self.follow_waypoints()
+                    #keep_searching = self.follow_waypoints()
+                    keep_searching = True
 
                     #####################################################################################3
                     # IS EDGE DETECTION BREAKING THE LOOP OF FOLLOWING WAYPOINTS ?
@@ -803,7 +820,7 @@ class Charles:
 
                     #---- Search center of the landing zone ----#
 
-                   if self.centerReached and self.stateCentering == 4:
+                    if self.centerReached and self.stateCentering == 4:
                         self.stateCentering = 0
                         self.state += 1
                         print('center reached')
@@ -817,9 +834,13 @@ class Charles:
                     # self.state += 1
                     # print("Next state : " + str(self.state))
 
-                    if True:
-                        self.state = 0
+                    #if True:
+                        #self.state = 0
                         #print("Next state : " + str(self.state))
+
+                elif self.state == 5:
+                #---- Back to start ---------------------#    
+                    self.back_to_start()
 
                 else:
                     print("Woooooops invalid state")
