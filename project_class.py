@@ -21,27 +21,8 @@ MAIS POUR LA PARTIE RECHERCHE DE PLATEFORME CA M'ARRANGAIT
 """
 
 
-###################################### PLAYGROUND ########################################
-"""        # Compute the error
-        error = current_waypoint - self.xyz_global
-        
-        kp = 1
-        MAX_SPEED = 0.1
+###################################### CONTROLLER ########################################
 
-        # Compute speed command to reduce the error
-        self.xyz_rate_cmd = kp * error
-        
-        # Limit the speed of each component xyz
-        for i in range(3):
-            if self.xyz_rate_cmd[i] > MAX_SPEED:
-                self.xyz_rate_cmd[i] = MAX_SPEED
-
-            if self.xyz_rate_cmd[i] < -MAX_SPEED:
-                self.xyz_rate_cmd[i] = -MAX_SPEED
-
-        # Continue the searching path
-
-"""
 class P_controller:
     def __init__(self, kp=1, MAX_SPEED=0.1):
         self.kp = kp
@@ -64,7 +45,8 @@ class P_controller:
                 self.u[i] = -MAX_SPEED
 
         return self.u
-        
+
+###################################### PLAYGROUND ########################################
 
 class playground:
     def __init__(self):
@@ -104,9 +86,9 @@ class playground:
                         ^
                         y0
         """
-        self.W = 2 # m
-        self.H1 = 1 # m
-        self.H2 = 1 # m
+        self.W = 3 # m
+        self.H1 = 1.5 # m
+        self.H2 = 2 # m
         self.H3 = 1.5 # m
 
         self.padHeight = 0.1
