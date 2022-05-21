@@ -8,7 +8,7 @@ from cflib.crazyflie.syncCrazyflie import SyncCrazyflie
 from cflib.crazyflie.syncLogger import SyncLogger
 from cflib.positioning.motion_commander import MotionCommander
 import numpy as np
-from sqlalchemy import false
+#from sqlalchemy import false
 
 logging.basicConfig(level=logging.ERROR)
 
@@ -39,11 +39,11 @@ class P_controller:
 
         # Saturate the command
         for i in range(3):
-            if self.u[i] > MAX_SPEED:
-                self.u[i] = MAX_SPEED
+            if self.u[i] > self.MAX_SPEED:
+                self.u[i] = self.MAX_SPEED
 
-            elif self.u[i] < -MAX_SPEED:
-                self.u[i] = -MAX_SPEED
+            elif self.u[i] < -self.MAX_SPEED:
+                self.u[i] = -self.MAX_SPEED
 
         return self.u
 
@@ -98,7 +98,7 @@ class playground:
         self.padCenter = np.array([0., 0.])
 
         #self.xyz0 = np.array([1, 0.4, 0.1]) # Inital position of the platform
-        self.xyz0 = np.array([0.5, 2.5, 0.1])
+        self.xyz0 = np.array([0.5, 1, 0.1])
 ###################################### CHARLES AIRLINES ########################################
 
 class Charles:
@@ -156,12 +156,14 @@ class Charles:
         self.stateCentering = 0
         self.edgeDetected = False
         self.edgeFound = 0  # 0:not found, 1:rising edge, 2:falling edge
-        self.edgeThresholdUp = 0.012
-        self.edgeThresholdDown = 0.007
+        #self.edgeThresholdUp = 0.012
+        #self.edgeThresholdDown = 0.007
+        self.edgeThresholdUp = 0.02
+        self.edgeThresholdDown = 0.015
         self.edgeTime = 0.
         self.edgeTimeDelay = 1.5
         self.centerReached = False
-        self.idx = 0
+        self.idx = 1
         self.queueZ = 50 * [0.]
         self.minZ = float('inf')
         self.maxZ = float('-inf')
@@ -247,6 +249,7 @@ class Charles:
         # self.minZ = min(self.queueZ)
         # self.maxZ = max(self.queueZ)
         self.diffZ = max(self.queueZ) - min(self.queueZ)
+        #print(self.diffZ)
 
         # self.rpy = np.array([data[self.pos_var_list[3]], data[self.pos_var_list[4]], data[self.pos_var_list[5]]])
         self.vz = data[self.pos_var_list[3]]
@@ -269,7 +272,8 @@ class Charles:
         self.keep_flying = True
 
         # Some constants to modify
-        VELOCITY = 0.6
+        VELOCITY_X = 0.4
+        VELOCITY_Y = 0.8
         MIN_Y = 0.5
         MAX_DISTANCE = 3.5
 
@@ -285,17 +289,17 @@ class Charles:
             if ((self.xyz[1] + self.xyz0[1]) < MIN_Y) or (self.border):
                 self.border = True
                 velocity_x = 0.0
-                velocity_y = VELOCITY
+                velocity_y = VELOCITY_Y
 
             # If not near the border, avoid by the left
             else:
                 velocity_x = 0.0
-                velocity_y = -VELOCITY
+                velocity_y = -VELOCITY_Y
 
         # If no obstacle, go forward
         else:  
             # print("Straight")
-            velocity_x = VELOCITY
+            velocity_x = VELOCITY_X
             velocity_y = 0.0
 
         # Arrived in searching zone
@@ -505,8 +509,8 @@ class Charles:
 
     def back_to_start(self) :
 
-        VELOCITY_X = 0.6
-        VELOCITY_Y = 0.6 
+        VELOCITY_X = 0.4
+        VELOCITY_Y = 0.8
 
         velocity_x = 0.0
         velocity_y = 0.0
@@ -558,7 +562,7 @@ class Charles:
                 else :
                     #print("Straight")
                     velocity_x = 0
-                    velocity_y = -VELOCITY_Y
+                    velocity_y = -VELOCITY_Y/2
 
             # y < 0 : go right while avoiding obstacle
             else :
@@ -574,7 +578,7 @@ class Charles:
                     if self.xyz[1] < (self.obs_y + 1.0) :
                         #print("Avoiding 2")
                         velocity_x = 0
-                        velocity_y = VELOCITY_Y
+                        velocity_y = VELOCITY_Y/2
                     else :
                         self.avoiding = False
 
@@ -599,6 +603,7 @@ class Charles:
         if (self.diffZ > self.edgeThresholdUp) and not self.edgeDetected:
             self.edgeDetected = True
             self.keep_searching = False
+            #print("début edge")
 
             if self.vz > 0.1:
                 if (edgeType == 0 or edgeType == 1):
@@ -614,6 +619,7 @@ class Charles:
 
         elif (self.diffZ <= self.edgeThresholdDown) and self.edgeDetected:
             self.edgeDetected = False
+            #print("Fin edge")
 
     # ----------------------------------------------------------------------------------------#
 
@@ -717,7 +723,7 @@ class Charles:
         with MotionCommander(scf, default_height=self.default_height) as mc:
             while (self.is_not_close()):
                 #print(self.range[2])
-                print(self.xyz_global[1])
+                #print(self.xyz_global[1])
 
                 if self.state == 0:
 
@@ -754,7 +760,7 @@ class Charles:
                         self.xyz_rate_cmd = np.array([0, 0, 0])
                         self.set_waypoints()
                         print("Setting waypoints")
-                        print(self.waypoints)
+                        #print(self.waypoints)
                     
                     change_waypoint = False
 
@@ -795,35 +801,41 @@ class Charles:
                     self.detectEdge()
 
                     if not self.keep_searching:
-                        #self.state += 1
-                        #self.waypoints = None
+                        self.state += 1
+                        self.waypoints = None
                         #print("Début centering")
-                        #test = np.array(self.xyz_rate_cmd)
-                        #self.xyz_rate_cmd = 0.1*np.sign(self.xyz_rate_cmd)*self.xyz_rate_cmd/np.max(np.abs(test))
+                        test = np.array(self.xyz_rate_cmd)
+                        self.xyz_rate_cmd = 0.1*np.sign(self.xyz_rate_cmd)*self.xyz_rate_cmd/np.max(np.abs(test))
                         # print("Next state : " + str(self.state))
 
-                        self.state = 5
-                        print("Test back to start")
+                        #self.state = 5
+                        #print("Test back to start")
 
                 elif self.state == 3:
                     # ---- Search center of the landing zone ----#
                     # self.detectEdge()
-                    self.centering()
-
+                    #self.centering()
+                    self.detectEdge()
+                        
                     #---- Search center of the landing zone ----#
 
-                    if self.centerReached and self.stateCentering == 4:
+                    if (self.centerReached and self.stateCentering == 4) or self.edgeDetected:
                         self.stateCentering = 0
                         self.state += 1
                         print('center reached')
+                        # Actual position of the drone is the pad center
+                        self.playground.padCenter[0] = self.xyz[0]
+                        self.playground.padCenter[1] = self.xyz[1]
                         # print("Next state : " + str(self.state))
 
 
                 elif self.state == 4:
+                    self.xyz[0] += self.playground.padCenter[0]
+                    self.xyz[1] += self.playground.padCenter[1]
                     mc.land()
-                    # time.sleep(5.)
-                    # mc.take_off()
-                    # self.state += 1
+                    time.sleep(5.)
+                    mc.take_off()
+                    self.state += 1
                     # print("Next state : " + str(self.state))
 
                     #if True:
@@ -831,7 +843,9 @@ class Charles:
                         #print("Next state : " + str(self.state))
 
                 elif self.state == 5:
-                #---- Back to start ---------------------#    
+                #---- Back to start ---------------------#
+                    self.xyz[0] += self.playground.padCenter[0]
+                    self.xyz[1] += self.playground.padCenter[1]
                     self.back_to_start()
 
                 else:
