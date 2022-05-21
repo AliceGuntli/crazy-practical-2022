@@ -8,6 +8,7 @@ from cflib.crazyflie.syncCrazyflie import SyncCrazyflie
 from cflib.crazyflie.syncLogger import SyncLogger
 from cflib.positioning.motion_commander import MotionCommander
 import numpy as np
+from sqlalchemy import false
 
 logging.basicConfig(level=logging.ERROR)
 
@@ -97,7 +98,7 @@ class playground:
         self.padCenter = np.array([0., 0.])
 
         #self.xyz0 = np.array([1, 0.4, 0.1]) # Inital position of the platform
-        self.xyz0 = np.array([0.3, 0.7, 0.1])
+        self.xyz0 = np.array([0.5, 2.5, 0.1])
 ###################################### CHARLES AIRLINES ########################################
 
 class Charles:
@@ -185,6 +186,7 @@ class Charles:
 
         # Searching path variables
         self.waypoints = None
+        self.keep_searching = False
 
         # Constants :
         self.min_dist = 300  # Distance to stop flying
@@ -264,12 +266,12 @@ class Charles:
     # ----------------------------------------------------------------------------------------#
 
     def move_to_landing_zone(self):
-        keep_flying = True
+        self.keep_flying = True
 
         # Some constants to modify
-        VELOCITY = 0.3
+        VELOCITY = 0.6
         MIN_Y = 0.5
-        MAX_DISTANCE = 1
+        MAX_DISTANCE = 3.5
 
         # Commands
         velocity_x = 0.0
@@ -283,12 +285,12 @@ class Charles:
             if ((self.xyz[1] + self.xyz0[1]) < MIN_Y) or (self.border):
                 self.border = True
                 velocity_x = 0.0
-                velocity_y = 2 * VELOCITY
+                velocity_y = VELOCITY
 
             # If not near the border, avoid by the left
             else:
                 velocity_x = 0.0
-                velocity_y = -2 * VELOCITY
+                velocity_y = -VELOCITY
 
         # If no obstacle, go forward
         else:  
@@ -298,7 +300,7 @@ class Charles:
 
         # Arrived in searching zone
         if (self.xyz[0] > MAX_DISTANCE):
-            keep_flying = False
+            self.keep_flying = False
             velocity_x = 0.0
             velocity_y = 0.0
 
@@ -306,7 +308,7 @@ class Charles:
         self.xyz_rate_cmd = [velocity_x, velocity_y, 0]
 
         # Return flase if in searching zone, true otherwise
-        return keep_flying
+        return self.keep_flying
 
     # ----------------------------------------------------------------------------------------#
 
@@ -343,7 +345,7 @@ class Charles:
                                        self.waypoints[6 * i + 3:6 * i + 6] + np.array([0, self.L * (-1) ** i, 0]))
 
         # Correct starting direction
-        if self.xyz_global[1] < self.playground.W / 2:
+        if self.xyz_global[1] > self.playground.W / 2:
             # Direction to start obstacle avoidance
             self.move = 2
             # Mirroir + décalage de 2*l + L
@@ -402,7 +404,7 @@ class Charles:
 
         #Case right
         if self.move == 0:  
-            print("Case right")
+            #print("Case right")
             if self.is_close_obs(self.range[4]) :
                 #print("Obstacle in view")
                 velocity_x = 2*VELOCITY_X
@@ -420,7 +422,7 @@ class Charles:
                     self.avoiding = False
 
             elif (not self.is_close_obs(self.range[1]) and self.xyz[0] > (x_waypoint+0.1) and self.avoiding == False):
-                print("Back to the trajectory")
+                #print("Back to the trajectory")
                 velocity_x = -VELOCITY_X
                 velocity_y = 0
                 
@@ -437,13 +439,13 @@ class Charles:
 
         #Case forward
         if self.move == 1 :
-            print("Case forward")
-            if (self.is_close_obs(self.range[0]) and (self.xyz[1] >= 1.0)) : #A changer
+            #print("Case forward")
+            if (self.is_close_obs(self.range[0]) and (self.xyz[1] >= 0.8)) : #A changer
                 #print("I go left")
                 velocity_y = -VELOCITY_Y
                 velocity_x = 0
             
-            elif (self.is_close_obs(self.range[0]) and (self.xyz[1] < 1.0)) : #A changer
+            elif (self.is_close_obs(self.range[0]) and (self.xyz[1] < 0.8)) : #A changer
                 #print("I go right")
                 velocity_x = 0
                 velocity_y = VELOCITY_Y
@@ -462,7 +464,7 @@ class Charles:
 
         #Case left
         if self.move == 2:   #Case side
-            print("Case left")
+            #print("Case left")
             if self.is_close_obs(self.range[3]):
                 #print("Obstacle in view")
                 velocity_x = 2*VELOCITY_X
@@ -480,7 +482,7 @@ class Charles:
                     self.avoiding = False
 
             elif (not self.is_close_obs(self.range[1]) and self.xyz[0] > (x_waypoint+0.1) and self.avoiding == False):
-                print("Back to the trajectory")
+                #print("Back to the trajectory")
                 velocity_x = -VELOCITY_X
                 velocity_y = 0
                 
@@ -503,8 +505,8 @@ class Charles:
 
     def back_to_start(self) :
 
-        VELOCITY_X = 0.3
-        VELOCITY_Y = 0.2 #0.5
+        VELOCITY_X = 0.6
+        VELOCITY_Y = 0.6 
 
         velocity_x = 0.0
         velocity_y = 0.0
@@ -533,7 +535,7 @@ class Charles:
 
                 if self.is_close_obs(self.range[3]):
                     #print("Obstacle in view")
-                    velocity_x = 2*VELOCITY_X
+                    velocity_x = VELOCITY_X
                     velocity_y = 0
                     self.obs_y = self.xyz[1]
                     self.avoiding = True
@@ -549,7 +551,7 @@ class Charles:
 
                 elif (not self.is_close_obs(self.range[1]) and (self.xyz[0] > 0.05) and self.avoiding == False):
                     #print("Back to the trajectory")
-                    velocity_x = -2*VELOCITY_X
+                    velocity_x = -VELOCITY_X
                     velocity_y = 0
                     
 
@@ -562,7 +564,7 @@ class Charles:
             else :
                 if self.is_close_obs(self.range[4]) :
                     #print("Obstacle in view")
-                    velocity_x = 2*VELOCITY_X
+                    velocity_x = VELOCITY_X
                     velocity_y = 0
                     self.obs_y = self.xyz[1]
                     self.avoiding = True
@@ -578,7 +580,7 @@ class Charles:
 
                 elif (not self.is_close_obs(self.range[1]) and self.xyz[0] > 0.05 and self.avoiding == False):
                     #print("Back to the trajectory")
-                    velocity_x = -2*VELOCITY_X
+                    velocity_x = -VELOCITY_X
                     velocity_y = 0
                     
 
@@ -593,8 +595,10 @@ class Charles:
     def detectEdge(self, edgeType=0):
         #print("%.4f" % self.diffZ, "%.4f" % self.vz)
         self.edgeFound = 0
+
         if (self.diffZ > self.edgeThresholdUp) and not self.edgeDetected:
             self.edgeDetected = True
+            self.keep_searching = False
 
             if self.vz > 0.1:
                 if (edgeType == 0 or edgeType == 1):
@@ -625,7 +629,7 @@ class Charles:
 
                     self.stateCentering += 1
                     self.idx = 0
-                    # print('first edge')
+                    print('first edge')
                 else:
                     self.idx = 1
 
@@ -650,7 +654,7 @@ class Charles:
 
                     self.stateCentering += 1
                     self.idx = 0
-                    # print('second edge')
+                    print('second edge')
                     # print("Pad center = ", self.playground.padCenter)
                 else:
                     self.idx = 1
@@ -674,7 +678,7 @@ class Charles:
                     self.xyz_rate_cmd *= -1
 
                     self.stateCentering += 1
-                    # print('third edge')
+                    print('third edge')
 
         elif self.stateCentering == 3:
             self.detectEdge()
@@ -698,7 +702,7 @@ class Charles:
 
                     self.stateCentering += 1
                     self.idx = 0
-                    # print('fourth edge')
+                    print('fourth edge')
                 else:
                     self.idx = 1
 
@@ -713,6 +717,7 @@ class Charles:
         with MotionCommander(scf, default_height=self.default_height) as mc:
             while (self.is_not_close()):
                 #print(self.range[2])
+                print(self.xyz_global[1])
 
                 if self.state == 0:
 
@@ -731,12 +736,12 @@ class Charles:
                     
                     # self.range = [front, back, up, left, right, zrange]
 
-                    keep_flying = self.move_to_landing_zone()
-                    #keep_flying = False
+                    self.keep_flying = self.move_to_landing_zone()
+                    #self.keep_flying = False
                     
-                    if not keep_flying:
+                    if not self.keep_flying:
                         print('Safe arrival in Landing zone ! Let the scan begin')
-                        keep_searching = True
+                        self.keep_searching = True
                         self.state += 1
                         # print("Next state : " + str(self.state))
 
@@ -744,7 +749,7 @@ class Charles:
 
                     #---- Search landing zone ----#
 
-                    if self.waypoints is None and keep_searching == True:
+                    if self.waypoints is None and self.keep_searching == True:
                         # Wait to compute waypoints (searching path)
                         self.xyz_rate_cmd = np.array([0, 0, 0])
                         self.set_waypoints()
@@ -782,18 +787,23 @@ class Charles:
                         
                     # Return true if we reached last waypoint, false otherwise
                     #keep_searching = self.follow_waypoints()
-                    keep_searching = True
+                    self.keep_searching = True
 
                     #####################################################################################3
                     # IS EDGE DETECTION BREAKING THE LOOP OF FOLLOWING WAYPOINTS ?
                     ######################################################################################3
                     self.detectEdge()
 
-                    if not keep_searching:
-                        self.state += 1
-                        self.waypoints = None
-                        self.xyz_rate_cmd = 0.1*np.sign(self.xyz_rate_cmd)*self.xyz_rate_cmd/max(abs(self.xyz_rate_cmd))
+                    if not self.keep_searching:
+                        #self.state += 1
+                        #self.waypoints = None
+                        #print("Début centering")
+                        #test = np.array(self.xyz_rate_cmd)
+                        #self.xyz_rate_cmd = 0.1*np.sign(self.xyz_rate_cmd)*self.xyz_rate_cmd/np.max(np.abs(test))
                         # print("Next state : " + str(self.state))
+
+                        self.state = 5
+                        print("Test back to start")
 
                 elif self.state == 3:
                     # ---- Search center of the landing zone ----#
