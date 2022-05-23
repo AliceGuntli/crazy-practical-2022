@@ -114,19 +114,9 @@ class Charles:
         self.border = False
 
         # State machine obstacle avoidance while searching
-        self.move = 0
-        self.avoiding = False
-        self.obs_y = 0.0
-        #self.current_waypoint = [0.0, 0.0]
-
-        #Right - forward - left
-        #self.waypoints_tests = [[0.0, 2.0], [0.5, 2.0], [0.5, 0.0]]
-
-        #Left - forward - right
-        self.waypoints_tests = [[0.0, -1.5], [0.5, -1.5], [0.5, 0.0]]
-
-        #Left
-        #self.waypoints_tests = [[0.0, -2.0]]
+        self.move = 0           # Type of move when searching (left, right or forward)
+        self.avoiding = False   # Drone is avoiding an obstacle 
+        self.obs_y = 0.0        # Record position of obstacle to go a bit straight to be able to detect it on the side
         
         # Initial position in the global frame
         self.xyz0 = self.playground.xyz0
@@ -267,6 +257,12 @@ class Charles:
                       data[self.multi_var_list[5]]]
 
     # ----------------------------------------------------------------------------------------#
+    # Function making the drone going from the start zone to the landing zone while avoiding obstacle
+    # To tune :
+    # MAX_DISTANCE : x-distance to move before being in the landing zone
+    # VELOCITY_X : velocity in x-direction, increase if want to go faster to the zone, but can break the avoidance
+    # VELOCITY_Y : velocity in y-direction (to avoid obstacle), increase if does not avoid obstacle well 
+    # MIN_Y : probably to be changed, to avoid obstacle by the right instead of the left if risk of going out of the flying zone
 
     def move_to_landing_zone(self):
         self.keep_flying = True
@@ -387,6 +383,10 @@ class Charles:
         return True
 
 #----------------------------------------------------------------------------------------#
+# Function making the drone following the waypoints to search the pad while avoiding the obstacles
+# To tune :
+# VELOCITY_X : velocity in x-direction (forward or avoiding obstacle, increase if not avoiding obstacle well)
+# VELOCITY_Y : velocity in y-direction, volontary slow to detect the pad
 
     def obstacle_avoidance_searching(self, current_waypoint) :
     
@@ -406,16 +406,30 @@ class Charles:
 
         reached = False
 
-        #Case right
+        #Case moving to the right
         if self.move == 0:  
-            #print("Case right")
+
+            # While obstacle detected on the right, go forward
+            #
+            #       #########
+            #    ^  #       #  
+            #    |  #       #
+            #    |  #########
+
             if self.is_close_obs(self.range[4]) :
                 #print("Obstacle in view")
                 velocity_x = 2*VELOCITY_X
                 velocity_y = 0
                 self.obs_y = self.xyz[1]
                 self.avoiding = True
-                
+
+            # When nothing more on the right, go a bit on the right to detect the obstacle behind
+            #     -->  
+            #       #########
+            #       #       #  
+            #       #       #
+            #       #########
+
             elif self.avoiding : 
                 #print("Avoiding")
                 if self.xyz[1] < (self.obs_y + 1.0) :
@@ -425,40 +439,73 @@ class Charles:
                 else :
                     self.avoiding = False
 
+            # When nothing more behind, go back to the trajectory
+            #                   
+            #       #########   |
+            #       #       #   \/  
+            #       #       #
+            #       #########
+
             elif (not self.is_close_obs(self.range[1]) and self.xyz[0] > (x_waypoint+0.1) and self.avoiding == False):
                 #print("Back to the trajectory")
                 velocity_x = -VELOCITY_X
                 velocity_y = 0
-                
+
+            # In other cases, go the right
+            #         --->          
+            #       #########   
+            #       #       #      --->
+            #       #       #
+            #       #########    
 
             else :
                 #print("Straight")
                 velocity_x = 0
                 velocity_y = VELOCITY_Y
 
+            # Waypoint is reached
             if self.xyz[1] > y_waypoint :
                 velocity_x = 0
                 velocity_y = 0
                 reached = True
 
-        #Case forward
+        #Case move forward 
         if self.move == 1 :
             #print("Case forward")
+
+            # Avoiding by the left
+            #
+            #       #########
+            #    ^  #       #  
+            #    |  #       #
+            #    |  #########
+            #        <----
+
             if (self.is_close_obs(self.range[0]) and (self.xyz[1] >= 0.8)) : #A changer
                 #print("I go left")
                 velocity_y = -VELOCITY_Y
                 velocity_x = 0
+
+            # Avoiding by the right
+            #
+            #       #########
+            #       #       #   ^
+            #       #       #   |
+            #       #########   |
+            #        ----->    
             
             elif (self.is_close_obs(self.range[0]) and (self.xyz[1] < 0.8)) : #A changer
                 #print("I go right")
                 velocity_x = 0
                 velocity_y = VELOCITY_Y
             
+            # Go forward if no obstacle
             else :
                 #print("I go forward")
                 velocity_x = VELOCITY_X
                 velocity_y = 0
 
+            # Waypoint is reached
             if self.xyz[0] > x_waypoint :
                 #print("I'm at waypoint")
                 velocity_x = 0
@@ -466,9 +513,17 @@ class Charles:
                 reached = True
                 
 
-        #Case left
-        if self.move == 2:   #Case side
+        #Case moving to the left
+        if self.move == 2:   
             #print("Case left")
+
+            # While obstacle detected on the left, go forward
+            #
+            #       #########   ^
+            #       #       #   |  
+            #       #       #   |
+            #       #########
+
             if self.is_close_obs(self.range[3]):
                 #print("Obstacle in view")
                 velocity_x = 2*VELOCITY_X
@@ -476,6 +531,12 @@ class Charles:
                 self.obs_y = self.xyz[1]
                 self.avoiding = True
                 
+            # When nothing more on the left, go a bit on the left to detect the obstacle behind
+            #               <---  
+            #       #########
+            #       #       #  
+            #       #       #
+            #       #########
 
             elif self.avoiding : 
                 if self.xyz[1] > (self.obs_y - 1.0) :
@@ -485,27 +546,46 @@ class Charles:
                 else :
                     self.avoiding = False
 
+            # When nothing more behind, go back to the trajectory
+            #                   
+            #   |   #########   
+            #   |   #       #     
+            #   \/  #       #
+            #       #########
+
             elif (not self.is_close_obs(self.range[1]) and self.xyz[0] > (x_waypoint+0.1) and self.avoiding == False):
                 #print("Back to the trajectory")
                 velocity_x = -VELOCITY_X
                 velocity_y = 0
                 
+            # In other cases, go the left
+            #         <---          
+            #       #########   
+            #  <--  #       #     
+            #       #       #
+            #       #########
 
             else :
                 #print("Straight")
                 velocity_x = 0
                 velocity_y = -VELOCITY_Y
-
+            
+            # Waypoint reached
             if self.xyz[1] < y_waypoint:
                 #print("Reached")
                 velocity_x = 0
                 velocity_y = 0
                 reached = True
                 
-
+        # Send the velocity command
         self.xyz_rate_cmd = [velocity_x, velocity_y, 0]
+        # If waypoint reached, return True
         return reached
 #------------------------------------------------------------------------------------------#
+# Function the drone going back to the starting point while avoiding obstacle
+# To tune :
+# VELOCITY_X : velocity in x-direction, increase if want to go faster to the zone, but can break the avoidance
+# # VELOCITY_Y : velocity in y-direction (to avoid obstacle), increase if does not avoid obstacle well 
 
     def back_to_start(self) :
 
@@ -515,16 +595,16 @@ class Charles:
         velocity_x = 0.0
         velocity_y = 0.0
 
-        # x > 0
+        # x > 0, not at the start point yet
         if self.xyz[0] > 0 :
             # If obstacle behind
             if self.is_close_obs(self.range[1]):
-                # If y > 0, avoid obstacle to left
+                # If y > 0, avoid obstacle by the left
                 if self.xyz[1] > 0 :
                     velocity_x = 0.0
                     velocity_y = -VELOCITY_Y
                 
-                # If y < 0, avoid obstacle to right
+                # If y < 0, avoid obstacle by the right
                 else :
                     velocity_x = 0.0
                     velocity_y = VELOCITY_Y
@@ -532,10 +612,17 @@ class Charles:
                 velocity_x = -VELOCITY_X
                 velocity_y = 0.0
                 
-        # If x = 0, move to y = 0
+        # If x = 0, move to y = 0 (on the line of the starting point)
         else :
             # y > 0 -> go left while avoiding obstacle
             if self.xyz[1] > 0 :
+                
+                # While obstacle detected on the left, go forward
+                #
+                #       #########   ^
+                #       #       #   |  
+                #       #       #   |
+                #       #########
 
                 if self.is_close_obs(self.range[3]):
                     #print("Obstacle in view")
@@ -544,6 +631,12 @@ class Charles:
                     self.obs_y = self.xyz[1]
                     self.avoiding = True
                 
+                # When nothing more on the left, go a bit on the left to detect the obstacle behind
+                #               <---  
+                #       #########
+                #       #       #  
+                #       #       #
+                #       #########
 
                 elif self.avoiding : 
                     if self.xyz[1] > (self.obs_y - 1.0) :
@@ -553,12 +646,19 @@ class Charles:
                     else :
                         self.avoiding = False
 
+                # When nothing more behind, go back to the trajectory
+                #                   
+                #   |   #########   
+                #   |   #       #     
+                #   \/  #       #
+                #       #########
+
                 elif (not self.is_close_obs(self.range[1]) and (self.xyz[0] > 0.05) and self.avoiding == False):
                     #print("Back to the trajectory")
                     velocity_x = -VELOCITY_X
                     velocity_y = 0
                     
-
+                # If no obstacle, go to the left 
                 else :
                     #print("Straight")
                     velocity_x = 0
@@ -566,6 +666,14 @@ class Charles:
 
             # y < 0 : go right while avoiding obstacle
             else :
+
+                # While obstacle detected on the right, go forward
+                #
+                #       #########
+                #    ^  #       #  
+                #    |  #       #
+                #    |  #########
+
                 if self.is_close_obs(self.range[4]) :
                     #print("Obstacle in view")
                     velocity_x = VELOCITY_X
@@ -573,6 +681,13 @@ class Charles:
                     self.obs_y = self.xyz[1]
                     self.avoiding = True
                 
+                # When nothing more on the right, go a bit on the right to detect the obstacle behind
+                #     -->  
+                #       #########
+                #       #       #  
+                #       #       #
+                #       #########
+
                 elif self.avoiding : 
                     #print("Avoiding")
                     if self.xyz[1] < (self.obs_y + 1.0) :
@@ -582,12 +697,19 @@ class Charles:
                     else :
                         self.avoiding = False
 
+                # When nothing more behind, go back to the trajectory
+                #                   
+                #       #########   |
+                #       #       #   \/  
+                #       #       #
+                #       #########
+
                 elif (not self.is_close_obs(self.range[1]) and self.xyz[0] > 0.05 and self.avoiding == False):
                     #print("Back to the trajectory")
                     velocity_x = -VELOCITY_X
                     velocity_y = 0
                     
-
+                # When no obstacle, go to the right
                 else :
                     #print("Straight")
                     velocity_x = 0
