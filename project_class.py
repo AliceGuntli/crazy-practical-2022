@@ -189,6 +189,9 @@ class Charles:
         self.N = 5  # Nombre d'allers
         self.H = (self.playground.H3 - 2 * self.h) / (self.N - 1)  # Ecart x entre chaque aller
 
+        self.N_spiral = 5 # Number of spiral to plan
+        self.H_spiral = 0.1 # Distance between each spiral
+
         self.Te_loop = 0.01  # Cadence la boucle principale EN SECONDES
         self.Te_log = 10  # Cadence la réception des données EN !!! MILLISECONDES !!!
 
@@ -311,6 +314,14 @@ class Charles:
         return self.keep_flying
 
     # ----------------------------------------------------------------------------------------#
+    def set_spiral_waypoints(self):
+        self.waypoints = np.array([])
+        self.waypoints = np.append(self.waypoints, [self.xyz_global[0], self.xyz_global[1], self.xyz_global[2]])
+
+        for i in range(2*self.N_spiral):
+            self.waypoints = np.append(self.waypoints, self.waypoints[6*i:6*i+3] + np.array([0, ((-1)**i)*(i+1)*self.H_spiral, 0]))
+            self.waypoints = np.append(self.waypoints, self.waypoints[6*i+3:6*i+6] + np.array([((-1)**i)*(i+1)*self.H_spiral, 0, 0]))
+
 
     def set_waypoints(self):
         """
@@ -921,9 +932,6 @@ class Charles:
                     #keep_searching = self.follow_waypoints()
                     self.keep_searching = True
 
-                    #####################################################################################3
-                    # IS EDGE DETECTION BREAKING THE LOOP OF FOLLOWING WAYPOINTS ?
-                    ######################################################################################3
                     self.detectEdge()
 
                     if not self.keep_searching:
