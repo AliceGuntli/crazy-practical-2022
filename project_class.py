@@ -843,6 +843,7 @@ class Charles:
     
     def stateMachine(self, scf):
         with MotionCommander(scf, default_height=self.default_height) as mc:
+            time.sleep(0.5)
             while (self.is_not_close()):
                 #print(self.range[2])
                 #print(self.xyz_global[1])
@@ -854,7 +855,10 @@ class Charles:
                     # default height has been reached -> Next state
                     if self.xyz[2] >= self.default_height:
                         self.state += 1
-                        
+
+                        # test centering:
+                        self.xyz_rate_cmd=np.array([0.1, 0., 0.])
+                        self.state = 3
                         #self.state += 1
                         #print("Next state : " + str(self.state))
 
@@ -937,18 +941,19 @@ class Charles:
                     # ---- Search center of the landing zone ----#
                     # self.detectEdge()
                     #self.centering()
-                    self.detectEdge()
-                        
+                    #self.detectEdge()
+                    print("%.4f" % self.diffZ, "%.4f" % self.vz)
+
                     #---- Search center of the landing zone ----#
 
-                    if (self.centerReached and self.stateCentering == 4) or self.edgeDetected:
-                        self.stateCentering = 0
-                        self.state += 1
-                        print('center reached')
-                        # Actual position of the drone is the pad center
-                        self.playground.padCenter[0] = self.xyz[0]
-                        self.playground.padCenter[1] = self.xyz[1]
-                        # print("Next state : " + str(self.state))
+                    # if (self.centerReached and self.stateCentering == 4) or self.edgeDetected:
+                    #     self.stateCentering = 0
+                    #     self.state += 1
+                    #     print('center reached')
+                    #     # Actual position of the drone is the pad center
+                    #     self.playground.padCenter[0] = self.xyz[0]
+                    #     self.playground.padCenter[1] = self.xyz[1]
+                    #     # print("Next state : " + str(self.state))
 
 
                 elif self.state == 4:
