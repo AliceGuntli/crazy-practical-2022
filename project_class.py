@@ -148,7 +148,7 @@ class Charles:
         self.stateCentering = 0
         self.edgeDetected = False
         self.edgeFound = 0  # 0:not found, 1:rising edge, 2:falling edge
-        self.edgeThresholdUp = 0.02
+        self.edgeThresholdUp = 0.015
         self.edgeThresholdDown = 0.007
         # self.edgeThresholdUp = 0.02
         # self.edgeThresholdDown = 0.015
@@ -331,7 +331,7 @@ class Charles:
             self.waypoints = np.append(self.waypoints, self.waypoints[6*i:6*i+3] + np.array([0, ((-1)**i)*(i+1)*self.H_spiral, 0]))
             self.waypoints = np.append(self.waypoints, self.waypoints[6*i+3:6*i+6] + np.array([((-1)**i)*(i+1)*self.H_spiral, 0, 0]))
 
-        print(self.waypoints)
+        #print(self.waypoints)
 
 
     def set_waypoints(self):
@@ -740,7 +740,7 @@ class Charles:
                     velocity_y = VELOCITY_Y
 
         # Arrived in searching zone
-        print(abs(self.xyz[1]))
+        #print(abs(self.xyz[1]))
         if (abs(self.xyz[1]) < epsilon): 
             self.keep_flying = False
             velocity_x = 0.0
@@ -962,9 +962,8 @@ class Charles:
                         self.state += 1
 
                         # test centering:
-                        self.xyz_rate_cmd=np.array([0.2, 0., 0.])
+                        self.xyz_rate_cmd=np.array([0., -0.2, 0.])
                         self.state = 3
-                        #self.state += 1
                         #print("Next state : " + str(self.state))
 
                 elif self.state == 1:
@@ -1049,7 +1048,7 @@ class Charles:
                 elif self.state == 3 or self.state == 7:
                     # ---- Search center of the landing zone ----#
                     # self.detectEdge()
-                    #print("%.4f" % self.meanZ, "%.4f" % self.xyz[2])
+                    print("%.4f" % self.diffZ, "%.4f" % self.xyz[2])
                     #self.detectEdge2()
                     self.centering2()
                     if self.stateCentering == 3:
@@ -1101,7 +1100,7 @@ class Charles:
                 else:
                     print("Woooooops invalid state")
                     
-                print(self.diffZ)
+                #print(self.diffZ)
                 #print(self.state)
                 
                 mc.start_linear_motion(self.xyz_rate_cmd[0], -self.xyz_rate_cmd[1], self.xyz_rate_cmd[2], self.rpy_rate_cmd[0])
