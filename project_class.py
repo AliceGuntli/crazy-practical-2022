@@ -192,7 +192,7 @@ class Charles:
         self.H = (self.playground.H3 - 2 * self.h) / (self.N - 1)  # Ecart x entre chaque aller
 
         self.N_spiral = 5 # Number of spiral to plan
-        self.H_spiral = 0.1 # Distance between each spiral
+        self.H_spiral = 0.3 # Distance between each spiral
 
         self.Te_loop = 0.01  # Cadence la boucle principale EN SECONDES
         self.Te_log = 10  # Cadence la réception des données EN !!! MILLISECONDES !!!
@@ -323,6 +323,8 @@ class Charles:
         for i in range(2*self.N_spiral):
             self.waypoints = np.append(self.waypoints, self.waypoints[6*i:6*i+3] + np.array([0, ((-1)**i)*(i+1)*self.H_spiral, 0]))
             self.waypoints = np.append(self.waypoints, self.waypoints[6*i+3:6*i+6] + np.array([((-1)**i)*(i+1)*self.H_spiral, 0, 0]))
+
+        print(self.waypoints)
 
 
     def set_waypoints(self):
@@ -925,7 +927,7 @@ class Charles:
 
                         # test centering:
                         self.xyz_rate_cmd=np.array([0.1, 0., 0.])
-                        self.state = 3
+                        #self.state = 3
                         #self.state += 1
                         #print("Next state : " + str(self.state))
 
@@ -944,15 +946,21 @@ class Charles:
                         self.state += 1
                         # print("Next state : " + str(self.state))
 
-                elif self.state == 2:
+                elif self.state == 2 or self.state == 6:
 
                     #---- Search landing zone ----#
 
                     if self.waypoints is None and self.keep_searching == True:
                         # Wait to compute waypoints (searching path)
                         self.xyz_rate_cmd = np.array([0, 0, 0])
-                        self.set_waypoints()
+                        
                         print("Setting waypoints")
+                        self.set_spiral_waypoints()
+##                        if self.state == 2:
+##                            self.set_waypoints()
+##                        elif self.state == 6:
+##                            self.set_spiral_waypoints()
+                        
                         #print(self.waypoints)
                     
                     change_waypoint = False
@@ -1042,6 +1050,7 @@ class Charles:
                     self.xyz[0] += self.playground.padCenter[0]
                     self.xyz[1] += self.playground.padCenter[1]
                     self.back_to_start()
+
 
                 else:
                     print("Woooooops invalid state")
