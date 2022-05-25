@@ -95,7 +95,7 @@ class playground:
         self.padHeight = 0.1
         self.padMargin = 0.01
         self.padSize_x = 0.05
-        self.padSize_y = 0.1
+        self.padSize_y = 0.05
         self.padEdge = np.zeros((4, 2))
         self.padCenter = np.array([0., 0.])
 
@@ -148,7 +148,7 @@ class Charles:
         self.stateCentering = 0
         self.edgeDetected = False
         self.edgeFound = 0  # 0:not found, 1:rising edge, 2:falling edge
-        self.edgeThresholdUp = 0.012
+        self.edgeThresholdUp = 0.02
         self.edgeThresholdDown = 0.007
         # self.edgeThresholdUp = 0.02
         # self.edgeThresholdDown = 0.015
@@ -190,6 +190,7 @@ class Charles:
         self.h = 0.1  # marge de chaque côté en x
         self.N = 5  # Nombre d'allers
         self.H = (self.playground.H3 - 2 * self.h) / (self.N - 1)  # Ecart x entre chaque aller
+
 
         self.N_spiral = 5 # Number of spiral to plan
         self.H_spiral = 0.3 # Distance between each spiral
@@ -603,7 +604,9 @@ class Charles:
 # # VELOCITY_Y : velocity in y-direction (to avoid obstacle), increase if does not avoid obstacle well 
 
     def back_to_start(self) :
+        self.keep_flying = True
 
+        epsilon = 0.3
         VELOCITY_X = 0.4
         VELOCITY_Y = 0.8
 
@@ -729,8 +732,19 @@ class Charles:
                     #print("Straight")
                     velocity_x = 0
                     velocity_y = VELOCITY_Y
-                
+
+        # Arrived in searching zone
+        print(abs(self.xyz[1]))
+        if (abs(self.xyz[1]) < epsilon): 
+            self.keep_flying = False
+            velocity_x = 0.0
+            velocity_y = 0.0
+
+        # Send command
         self.xyz_rate_cmd = [velocity_x, velocity_y, 0]
+
+        # Return flase if in searching zone, true otherwise
+        return self.keep_flying
     
     # ----------------------------------------------------------------------------------------#
     def detectEdge(self, edgeType=0):
@@ -740,7 +754,7 @@ class Charles:
         if (self.diffZ > self.edgeThresholdUp) and not self.edgeDetected:
             self.edgeDetected = True
             self.edgeFound = 1
-            #self.keep_searching = False
+            self.keep_searching = False
             #print("Edge detected")
 
             # if self.vz > 0.1:
@@ -764,7 +778,7 @@ class Charles:
         if self.stateCentering == 0:
             self.detectEdge()
             if self.edgeFound:
-                print("First edge")
+                #print("First edge")
                 if abs(self.xyz_rate_cmd[0]) > abs(self.xyz_rate_cmd[1]):
                     self.playground.padCenter = np.array([self.xyz_global[0]+np.sign(self.xyz_rate_cmd[0])*self.playground.padSize_x,
                                                               self.xyz_global[1]])
@@ -772,7 +786,7 @@ class Charles:
                     self.playground.padCenter = np.array([self.xyz_global[0],
                                                           self.xyz_global[1]+np.sign(self.xyz_rate_cmd[1])*self.playground.padSize_y])
 
-                print("PadCenter:",self.playground.padCenter)
+                #print("PadCenter:",self.playground.padCenter)
                 self.waypoints = np.array([])
                 self.waypoints = np.append(self.waypoints,
                                            [self.playground.padCenter[0], self.playground.padCenter[1],
@@ -788,11 +802,11 @@ class Charles:
                     self.xyz_rate_cmd = np.array([self.xyz_rate_cmd_old[1],
                                                   self.xyz_rate_cmd_old[0],
                                                   self.xyz_rate_cmd_old[2]])
-                    print("Pseudo center reached:", self.xyz_global)
+                    #print("Pseudo center reached:", self.xyz_global)
             else:
                 self.detectEdge()
                 if self.edgeFound:
-                    print("Second edge")
+                    #print("Second edge")
                     if abs(self.xyz_rate_cmd[0]) > abs(self.xyz_rate_cmd[1]):
                         self.playground.padCenter[0] = self.xyz_global[0] - np.sign(self.xyz_rate_cmd[0]) * self.playground.padSize_x
                     else:
@@ -802,7 +816,7 @@ class Charles:
                     self.waypoints = np.append(self.waypoints,
                                                [self.playground.padCenter[0], self.playground.padCenter[1],
                                                 self.default_height])
-                    print("PadCenter:", self.playground.padCenter)
+                    #print("PadCenter:", self.playground.padCenter)
 
                     self.xyz_rate_cmd_old = self.xyz_rate_cmd  # for later use
                     self.stateCentering += 1
@@ -814,7 +828,7 @@ class Charles:
                 self.centerReached = True
                 self.xyz_rate_cmd = np.array([0.,0.,0.])
                 self.stateCentering += 1
-                print("Center reached", self.xyz_global)
+                #print("Center reached", self.xyz_global)
 
     def centering(self):
         if self.stateCentering == 0:
@@ -947,6 +961,7 @@ class Charles:
                         # print("Next state : " + str(self.state))
 
                 elif self.state == 2 or self.state == 6:
+                # Soit on cherche la zone de landing soit on cherche la zone de départ
 
                     #---- Search landing zone ----#
 
@@ -955,11 +970,11 @@ class Charles:
                         self.xyz_rate_cmd = np.array([0, 0, 0])
                         
                         print("Setting waypoints")
-                        self.set_spiral_waypoints()
-##                        if self.state == 2:
-##                            self.set_waypoints()
-##                        elif self.state == 6:
-##                            self.set_spiral_waypoints()
+                        #self.set_spiral_waypoints()
+                        if self.state == 2:
+                            self.set_waypoints()
+                        elif self.state == 6:
+                            self.set_spiral_waypoints()
                         
                         #print(self.waypoints)
                     
@@ -1009,27 +1024,35 @@ class Charles:
                         #self.state = 5
                         #print("Test back to start")
 
-                elif self.state == 3:
+                elif self.state == 3 or self.state == 7:
                     # ---- Search center of the landing zone ----#
                     # self.detectEdge()
                     # print("%.4f" % self.diffZ, "%.4f" % self.vz)
                     self.centering2()
                     if self.stateCentering == 3:
-                        mc.land()
-                        time.sleep(5.)
+                        #mc.land()
+                        #time.sleep(5.)
+                        
+                        if self.state == 3: # Si on est au state 3, on s'est posé sur la zone d'arrivée -> On passe au state suivant
+                            self.state += 1
+                            self.playground.padCenter[0] = self.xyz[0]
+                            self.playground.padCenter[1] = self.xyz[1]
+                        else:
+                            mc.land()
+                            break # Si on est au state 7, on est de retour à la zone de départ -> On coupe
 
 
 
                     #---- Search center of the landing zone ----#
 
-                    # if (self.centerReached and self.stateCentering == 4) or self.edgeDetected:
-                    #     self.stateCentering = 0
-                    #     self.state += 1
-                    #     print('center reached')
-                    #     # Actual position of the drone is the pad center
-                    #     self.playground.padCenter[0] = self.xyz[0]
-                    #     self.playground.padCenter[1] = self.xyz[1]
-                    #     # print("Next state : " + str(self.state))
+##                    if (self.centerReached and self.stateCentering == 4) or self.edgeDetected:
+##                        self.stateCentering = 0
+##                        self.state += 1
+##                        print('center reached')
+##                        # Actual position of the drone is the pad center
+##                        self.playground.padCenter[0] = self.xyz[0]
+##                        self.playground.padCenter[1] = self.xyz[1]
+                        # print("Next state : " + str(self.state))
 
 
                 elif self.state == 4:
@@ -1055,7 +1078,8 @@ class Charles:
                 else:
                     print("Woooooops invalid state")
                     
-                #print(self.xyz_rate_cmd[1])
+                print(self.diffZ)
+                #print(self.state)
                 
                 mc.start_linear_motion(self.xyz_rate_cmd[0], -self.xyz_rate_cmd[1], self.xyz_rate_cmd[2], self.rpy_rate_cmd[0])
 
