@@ -87,7 +87,7 @@ class playground:
                         ^
                         y0
         """
-        self.W = 3 # m
+        self.W = 2.5 # m
         self.H1 = 1.5 # m
         self.H2 = 2 # m
         self.H3 = 1.5 # m
@@ -283,7 +283,7 @@ class Charles:
         VELOCITY_X = 0.4
         VELOCITY_Y = 0.8
         MIN_Y = 0.5
-        MAX_DISTANCE = 3.5
+        MAX_DISTANCE = 2.5
 
         # Commands
         velocity_x = 0.0
@@ -749,7 +749,7 @@ class Charles:
         # Send command
         self.xyz_rate_cmd = [velocity_x, velocity_y, 0]
 
-        # Return flase if in searching zone, true otherwise
+        # Return false if in searching zone, true otherwise
         return self.keep_flying
     
     # ----------------------------------------------------------------------------------------#
@@ -981,6 +981,7 @@ class Charles:
                     if not self.keep_flying:
                         print('Safe arrival in Landing zone ! Let the scan begin')
                         self.keep_searching = True
+                        waypoint_drone = 0
                         self.state += 1
                         # print("Next state : " + str(self.state))
 
@@ -1007,9 +1008,10 @@ class Charles:
                     #change_waypoint = self.obstacle_avoidance_searching(self.waypoints[0])
                     # From global frame to drone frame
                     initial_pos = [self.xyz0[0], self.xyz0[1]]
-                    waypoint_drone = [self.waypoints[0]-initial_pos[0], self.waypoints[1]-initial_pos[1]]
+                    if self.waypoints is not None:
+                        waypoint_drone = [self.waypoints[0]-initial_pos[0], self.waypoints[1]-initial_pos[1]]
                     #print(waypoint_drone)
-                    change_waypoint = self.obstacle_avoidance_searching(waypoint_drone)
+                        change_waypoint = self.obstacle_avoidance_searching(waypoint_drone)
                     
 
                     if change_waypoint :
@@ -1018,7 +1020,8 @@ class Charles:
                         #np.delete(self.waypoints, [0,1,2])
                         self.waypoints = self.waypoints[3:len(self.waypoints)]
                         #waypoint_drone = self.waypoints[0]-initial_pos
-                        waypoint_drone = [self.waypoints[0]-initial_pos[0], self.waypoints[1]-initial_pos[1]]
+                        if self.waypoints is not None:
+                            waypoint_drone = [self.waypoints[0]-initial_pos[0], self.waypoints[1]-initial_pos[1]]
 
                         # If right or left before, forward now
                         if self.move != 1 :
@@ -1061,8 +1064,14 @@ class Charles:
                         
                         if self.state == 3: # Si on est au state 3, on s'est posé sur la zone d'arrivée -> On passe au state suivant
                             self.state += 1
+                            self.stateCentering = 0
+                            self.centerReached = False
                             self.playground.padCenter[0] = self.xyz[0]
                             self.playground.padCenter[1] = self.xyz[1]
+                            # self.waypoints = np.array([])
+                            # self.waypoints = np.append(self.waypoints,
+                            #                            [self.playground.padCenter[0], self.playground.padCenter[1],
+                            #                             0.1])
                         else:
                             mc.land()
                             break # Si on est au state 7, on est de retour à la zone de départ -> On coupe
@@ -1082,12 +1091,15 @@ class Charles:
 
 
                 elif self.state == 4:
+                    #if not self.follow_waypoints():
                     self.xyz[0] += self.playground.padCenter[0]
                     self.xyz[1] += self.playground.padCenter[1]
                     mc.land()
-                    time.sleep(5.)
+                    time.sleep(2.)
                     mc.take_off()
+                    self.keep_flying = True
                     self.state += 1
+
                     # print("Next state : " + str(self.state))
 
                     #if True:
@@ -1099,6 +1111,8 @@ class Charles:
                     self.xyz[0] += self.playground.padCenter[0]
                     self.xyz[1] += self.playground.padCenter[1]
                     self.back_to_start()
+                    if not self.keep_flying:
+                        self.state += 1
 
 
                 else:
