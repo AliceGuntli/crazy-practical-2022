@@ -95,7 +95,7 @@ class playground:
         self.padHeight = 0.05
         self.padMargin = 0.01
         self.padSize_x = 0.2
-        self.padSize_y = 0.18
+        self.padSize_y = 0.2
         self.padEdge = np.zeros((4, 2))
         self.padCenter = np.array([0., 0.])
 
@@ -753,20 +753,20 @@ class Charles:
         return self.keep_flying
     
     # ----------------------------------------------------------------------------------------#
-    def detectEdge2(self):
-        self.edgeFound = 0
-        if not self.edgeDetected:
-            if self.xyz[2] < self.meanZ - self.playground.padHeight:
-                self.edgeDetected = True
-                self.edgeFound = 1
-                print(self.edgeFound)
-            elif self.xyz[2] > self.meanZ + self.playground.padHeight and not self.edgeDetected:
-                self.edgeDetected = True
-                self.edgeFound = 2
-                print(self.edgeFound)
-        elif not (self.xyz[2] < self.meanZ - self.playground.padHeight or self.xyz[2] > self.meanZ + self.playground.padHeight):
-            self.edgeDetected = False
-            print(self.edgeFound)
+    # def detectEdge2(self):
+    #     self.edgeFound = 0
+    #     if not self.edgeDetected:
+    #         if self.xyz[2] < self.meanZ - self.playground.padHeight:
+    #             self.edgeDetected = True
+    #             self.edgeFound = 1
+    #             print(self.edgeFound)
+    #         elif self.xyz[2] > self.meanZ + self.playground.padHeight and not self.edgeDetected:
+    #             self.edgeDetected = True
+    #             self.edgeFound = 2
+    #             print(self.edgeFound)
+    #     elif not (self.xyz[2] < self.meanZ - self.playground.padHeight or self.xyz[2] > self.meanZ + self.playground.padHeight):
+    #         self.edgeDetected = False
+    #         print(self.edgeFound)
 
 
     def detectEdge(self, edgeType=0):
@@ -813,8 +813,8 @@ class Charles:
                 self.waypoints = np.append(self.waypoints,
                                            [self.playground.padCenter[0], self.playground.padCenter[1],
                                             self.default_height])
-
-                self.xyz_rate_cmd_old = self.xyz_rate_cmd  # for later use
+                self.xyz_rate_cmd_old = np.array(self.xyz_rate_cmd)
+                self.xyz_rate_cmd_old = 0.2*self.xyz_rate_cmd_old/np.max(np.abs(self.xyz_rate_cmd_old))
                 self.stateCentering += 1
 
         if self.stateCentering == 1:
@@ -962,8 +962,11 @@ class Charles:
                         self.state += 1
 
                         # test centering:
-                        self.xyz_rate_cmd=np.array([0., -0.2, 0.])
-                        self.state = 3
+                        #self.xyz_rate_cmd = np.array([0.2, 0., 0.])
+                        #self.xyz_rate_cmd = np.array([0., 0.2, 0.])
+                        #self.xyz_rate_cmd = np.array([-0.2, 0., 0.])
+                        #self.xyz_rate_cmd = np.array([0., -0.2, 0.])
+                        #self.state = 3
                         #print("Next state : " + str(self.state))
 
                 elif self.state == 1:
@@ -1032,14 +1035,15 @@ class Charles:
                     #keep_searching = self.follow_waypoints()
                     self.keep_searching = True
 
-                    self.detectEdge()
+                    self.centering2()
 
                     if not self.keep_searching:
                         self.state += 1
-                        self.waypoints = None
+                        #self.waypoints = None
                         #print("Début centering")
-                        test = np.array(self.xyz_rate_cmd)
-                        self.xyz_rate_cmd = 0.1*np.sign(self.xyz_rate_cmd)*self.xyz_rate_cmd/np.max(np.abs(test))
+                        # self.xyz_rate_cmd = np.array(self.xyz_rate_cmd)
+                        # self.xyz_rate_cmd = 0.2*self.xyz_rate_cmd/np.max(np.abs(self.xyz_rate_cmd))
+                        # print(self.xyz_rate_cmd)
                         # print("Next state : " + str(self.state))
 
                         #self.state = 5
@@ -1048,7 +1052,7 @@ class Charles:
                 elif self.state == 3 or self.state == 7:
                     # ---- Search center of the landing zone ----#
                     # self.detectEdge()
-                    print("%.4f" % self.diffZ, "%.4f" % self.xyz[2])
+                    #print("%.4f" % self.diffZ, "%.4f" % self.xyz[2])
                     #self.detectEdge2()
                     self.centering2()
                     if self.stateCentering == 3:
