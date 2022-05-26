@@ -817,6 +817,7 @@ class Charles:
                 self.xyz_rate_cmd_old = 0.2*self.xyz_rate_cmd_old/np.max(np.abs(self.xyz_rate_cmd_old))
                 self.stateCentering += 1
 
+
         if self.stateCentering == 1:
             if not self.centerReached:
                 if not self.follow_waypoints():
@@ -836,8 +837,9 @@ class Charles:
 
                     self.waypoints = np.array([])
                     self.waypoints = np.append(self.waypoints,
-                                               [self.playground.padCenter[0], self.playground.padCenter[1],
-                                                self.default_height])
+                                               [self.playground.padCenter[0], self.playground.padCenter[1],self.default_height])
+                    self.waypoints = np.append(self.waypoints,
+                                               [self.playground.padCenter[0], self.playground.padCenter[1], 0.15])
                     #print("PadCenter:", self.playground.padCenter)
 
                     self.xyz_rate_cmd_old = self.xyz_rate_cmd  # for later use
@@ -962,11 +964,11 @@ class Charles:
                         self.state += 1
 
                         # test centering:
-                        #self.xyz_rate_cmd = np.array([0.2, 0., 0.])
+                        self.xyz_rate_cmd = np.array([0.2, 0., 0.])
                         #self.xyz_rate_cmd = np.array([0., 0.2, 0.])
                         #self.xyz_rate_cmd = np.array([-0.2, 0., 0.])
                         #self.xyz_rate_cmd = np.array([0., -0.2, 0.])
-                        #self.state = 3
+                        self.state = 3
                         #print("Next state : " + str(self.state))
 
                 elif self.state == 1:
@@ -1068,10 +1070,6 @@ class Charles:
                             self.centerReached = False
                             self.playground.padCenter[0] = self.xyz[0]
                             self.playground.padCenter[1] = self.xyz[1]
-                            # self.waypoints = np.array([])
-                            # self.waypoints = np.append(self.waypoints,
-                            #                            [self.playground.padCenter[0], self.playground.padCenter[1],
-                            #                             0.1])
                         else:
                             mc.land()
                             break # Si on est au state 7, on est de retour à la zone de départ -> On coupe
@@ -1091,7 +1089,6 @@ class Charles:
 
 
                 elif self.state == 4:
-                    #if not self.follow_waypoints():
                     self.xyz[0] += self.playground.padCenter[0]
                     self.xyz[1] += self.playground.padCenter[1]
                     mc.land()
