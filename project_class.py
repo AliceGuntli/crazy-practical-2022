@@ -353,10 +353,10 @@ class Charles:
 
     # ----------------------------------------------------------------------------------------#
 
-    def follow_waypoints(self):
+    def follow_waypoints(self, epsilon=0.05):
         """ Follow the waypoints given in self.waypoints"""
         # Min distance to consider point as reached
-        epsilon = 0.01  # m
+        #epsilon = 0.01  # m
         modulus_error = np.sum((self.waypoints[0:3] - self.xyz_global) ** 2)  # Modulus of the error [m^2]
 
         # Check if the waypoint has been reached
@@ -909,7 +909,7 @@ class Charles:
                 time.sleep(self.edgeTimeDelay)  # for stabilization
 
         elif self.stateCentering == 8:
-            if not self.follow_waypoints():
+            if not self.follow_waypoints(0.01):
                 self.centerReached = True
                 self.xyz_rate_cmd = np.array([0., 0., 0.])
                 print("Center reached")
@@ -1088,7 +1088,7 @@ class Charles:
                         # test centering:
                         time.sleep(.5)
                         #self.xyz_rate_cmd = np.array([0.2, 0., 0.])
-                        #self.xyz_rate_cmd = np.array([0., 0.2, 0.])
+                        self.xyz_rate_cmd = np.array([0., 0.2, 0.])
                         #self.xyz_rate_cmd = np.array([-0.2, 0., 0.])
                         #self.xyz_rate_cmd = np.array([0., -0.2, 0.])
                         self.state = 4
