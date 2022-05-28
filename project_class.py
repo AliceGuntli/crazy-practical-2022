@@ -89,7 +89,7 @@ class playground:
                         ^
                         y0
         """
-        self.W = 2.5  # m
+        self.W = 3  # m
         self.H1 = 1.5  # m
         self.H2 = 2  # m
         self.H3 = 1.5  # m
@@ -102,7 +102,7 @@ class playground:
         self.padCenter = np.array([0., 0.])
 
         # self.xyz0 = np.array([1, 0.4, 0.1]) # Inital position of the platform
-        self.xyz0 = np.array([0.5, 1, 0.1])
+        self.xyz0 = np.array([0.7, 1, 0.1])
 
 
 
@@ -570,6 +570,49 @@ class Charles:
             # Waypoint reached
             if self.xyz[1] < y_waypoint:
                 # print("Reached")
+                velocity_x = 0
+                velocity_y = 0
+                reached = True
+        
+        # Case moving to the back
+        if self.move == 3:
+            # print("Case back")
+
+            # Avoiding by the left
+            #
+            #       #########
+            #    ^  #       #
+            #    |  #       #
+            #    |  #########
+            #        <----
+
+            if (self.is_close_obs(self.range[1]) and (self.xyz[1] >= 0.8)):  # A changer
+                # print("I go left")
+                velocity_y = -VELOCITY_Y
+                velocity_x = 0
+
+            # Avoiding by the right
+            #
+            #       #########
+            #       #       #   ^
+            #       #       #   |
+            #       #########   |
+            #        ----->
+
+            elif (self.is_close_obs(self.range[1]) and (self.xyz[1] < 0.8)):  # A changer
+                # print("I go right")
+                velocity_x = 0
+                velocity_y = VELOCITY_Y
+
+            # Go forward if no obstacle
+            else:
+                # print("I go forward")
+                velocity_x = -VELOCITY_X
+                velocity_y = 0
+
+            # Waypoint is reached
+            if self.xyz[0] < x_waypoint:
+                # print("I'm at waypoint")
                 velocity_x = 0
                 velocity_y = 0
                 reached = True
@@ -1047,8 +1090,8 @@ class Charles:
                         #self.xyz_rate_cmd = np.array([0.2, 0., 0.])
                         #self.xyz_rate_cmd = np.array([0., 0.2, 0.])
                         #self.xyz_rate_cmd = np.array([-0.2, 0., 0.])
-                        self.xyz_rate_cmd = np.array([0., -0.2, 0.])
-                        self.state = 3
+                        #self.xyz_rate_cmd = np.array([0., -0.2, 0.])
+                        self.state = 4
                         # print("Next state : " + str(self.state))
 
                 elif self.state == 1:
@@ -1082,6 +1125,8 @@ class Charles:
                             self.set_waypoints()
                         elif self.state == 6:
                             self.set_spiral_waypoints()
+                            print("Waypoints :", self.waypoints)
+                            self.move = 0
 
                         # print(self.waypoints)
 
@@ -1096,7 +1141,7 @@ class Charles:
                         change_waypoint = self.obstacle_avoidance_searching(waypoint_drone)
 
                     if change_waypoint:
-                        # print("Pop")
+                        print("Pop")
                         self.avoiding = False
                         # np.delete(self.waypoints, [0,1,2])
                         self.waypoints = self.waypoints[3:len(self.waypoints)]
@@ -1105,16 +1150,23 @@ class Charles:
                             waypoint_drone = [self.waypoints[0] - initial_pos[0], self.waypoints[1] - initial_pos[1]]
 
                         # If right or left before, forward now
-                        if self.move != 1:
-                            self.move = 1
+                        if self.state == 2 :
+                            if self.move != 1:
+                                self.move = 1
 
-                        # If forward before, determine right or left frome y coordinate of next waypoint in drone frame
-                        else:
-                            if waypoint_drone[1] < 0:
-                                self.move = 2
+                            # If forward before, determine right or left frome y coordinate of next waypoint in drone frame
                             else:
+                                if waypoint_drone[1] < 0:
+                                    self.move = 2
+                                else:
+                                    self.move = 0
+                        
+                        elif self.state == 6 :
+                            # If right before, forward next
+                            self.move += 1
+                            if self.move == 4 :
                                 self.move = 0
-
+                                
                     # Return true if we reached last waypoint, false otherwise
                     # keep_searching = self.follow_waypoints()
                     self.keep_searching = True
@@ -1142,9 +1194,15 @@ class Charles:
                             break  # Si on est au state 7, on est de retour à la zone de départ -> On coupe
 
                 elif self.state == 4:
+                    #self.xyz[0] += self.playground.padCenter[0]
+                    #self.xyz[1] += self.playground.padCenter[1]
+                    #mc.land()
+                    self.playground.padCenter[0] = 0.216 - self.playground.xyz0[0]
+                    self.playground.padCenter[1] = 0.216 - self.playground.xyz0[1]
+
                     self.xyz[0] += self.playground.padCenter[0]
                     self.xyz[1] += self.playground.padCenter[1]
-                    mc.land()
+                    
                     time.sleep(2.)
                     mc.take_off()
                     self.keep_flying = True
@@ -1163,6 +1221,7 @@ class Charles:
                     self.back_to_start()
                     if not self.keep_flying:
                         self.state += 1
+                        self.keep_searching = True
 
 
                 else:
