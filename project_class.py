@@ -767,7 +767,7 @@ class Charles:
         elif self.stateCentering == 1:
             self.xyz_rate_cmd = self.xyz_rate_cmd_old
             self.detectEdge()
-            if self.edgeFound == 2:
+            if self.edgeFound:# == 2:
                 self.playground.padEdge[1] = (self.xyz_global[0], self.xyz_global[1])
                 self.playground.padCenter = np.array((self.playground.padEdge[0] + self.playground.padEdge[1]) / 2)
 
@@ -790,7 +790,7 @@ class Charles:
 
         elif self.stateCentering == 3:
             self.detectEdge()
-            if self.edgeFound == 2:
+            if self.edgeFound:# == 2:
                 self.playground.padEdge[0] = (self.xyz_global[0], self.xyz_global[1])
                 self.playground.padCenter = np.array((self.playground.padEdge[0] + self.playground.padEdge[1]) / 2)
 
@@ -815,7 +815,7 @@ class Charles:
 
         elif self.stateCentering == 5:
             self.detectEdge()
-            if self.edgeFound == 2:
+            if self.edgeFound:# == 2:
                 self.playground.padEdge[2] = (self.xyz_global[0], self.xyz_global[1])
 
                 if abs(self.xyz_rate_cmd[0]) > abs(self.xyz_rate_cmd[1]):
@@ -844,7 +844,7 @@ class Charles:
 
         elif self.stateCentering == 7:
             self.detectEdge()
-            if self.edgeFound == 2:
+            if self.edgeFound:# == 2:
                 self.playground.padEdge[3] = (self.xyz_global[0], self.xyz_global[1])
 
                 if abs(self.xyz_rate_cmd[0]) > abs(self.xyz_rate_cmd[1]):
@@ -1047,8 +1047,8 @@ class Charles:
                         #self.xyz_rate_cmd = np.array([0.2, 0., 0.])
                         #self.xyz_rate_cmd = np.array([0., 0.2, 0.])
                         #self.xyz_rate_cmd = np.array([-0.2, 0., 0.])
-                        #self.xyz_rate_cmd = np.array([0., -0.2, 0.])
-                        #self.state = 3
+                        self.xyz_rate_cmd = np.array([0., -0.2, 0.])
+                        self.state = 3
                         # print("Next state : " + str(self.state))
 
                 elif self.state == 1:
