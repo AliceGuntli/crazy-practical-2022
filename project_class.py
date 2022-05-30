@@ -150,6 +150,8 @@ class Charles:
         self.edgeFound = 0  # 0:not found, 1:rising edge, 2:falling edge
         self.edgeThresholdUp = 0.015
         self.edgeThresholdDown = 0.01
+        #self.edgeThresholdUp = 0.03
+        #self.edgeThresholdDown = 0.01
         self.edgeTimeDelay = 0.5
         self.centerReached = False
         self.queueZ = 50 * [0.]
@@ -263,7 +265,7 @@ class Charles:
         VELOCITY_X = 0.4
         VELOCITY_Y = 0.8
         MIN_Y = 0.5
-        MAX_DISTANCE = 3
+        MAX_DISTANCE = 2.7
 
         # Commands
         velocity_x = 0.0
@@ -394,15 +396,15 @@ class Charles:
 
     def obstacle_avoidance_searching(self, current_waypoint):
 
-        VELOCITY_X = 0.3
-        VELOCITY_Y = 0.2  # 0.5
+        VELOCITY_X = 0.4
+        VELOCITY_Y = 0.4 # 0.5
 
         velocity_x = 0.0
         velocity_y = 0.0
 
         x_waypoint = current_waypoint[0]
         y_waypoint = current_waypoint[1]
-        print("Current waypoint : ", current_waypoint)
+        #print("Current waypoint : ", current_waypoint)
         # print("x waypoint : ", x_waypoint)
         # print("y waypoint : ", y_waypoint)
 
@@ -413,7 +415,7 @@ class Charles:
 
         # Case moving to the right
         if self.move == 0:
-            print("Case right")
+            #print("Case right")
 
             # While obstacle detected on the right, go forward
             #
@@ -470,7 +472,7 @@ class Charles:
                 velocity_y = VELOCITY_Y
 
             # Waypoint is reached
-            print("My location : ", self.xyz)
+            #print("My location : ", self.xyz)
             if self.xyz[1] > y_waypoint:
                 velocity_x = 0
                 velocity_y = 0
@@ -478,7 +480,7 @@ class Charles:
 
         # Case move forward
         if self.move == 1:
-            print("Case forward")
+            #print("Case forward")
 
             # Avoiding by the left
             #
@@ -513,7 +515,7 @@ class Charles:
                 velocity_y = 0
 
             # Waypoint is reached
-            print("My location : ", self.xyz)
+            #print("My location : ", self.xyz)
             if self.xyz[0] > x_waypoint:
                 # print("I'm at waypoint")
                 velocity_x = 0
@@ -522,7 +524,7 @@ class Charles:
 
         # Case moving to the left
         if self.move == 2:
-            print("Case left")
+            #print("Case left")
 
             # While obstacle detected on the left, go forward
             #
@@ -578,7 +580,7 @@ class Charles:
                 velocity_y = -VELOCITY_Y
 
             # Waypoint reached
-            print("My location : ", self.xyz)
+            #print("My location : ", self.xyz)
             if self.xyz[1] < y_waypoint:
                 # print("Reached")
                 velocity_x = 0
@@ -587,7 +589,7 @@ class Charles:
         
         # Case moving to the back
         if self.move == 3:
-            print("Case back")
+            #print("Case back")
             
 
             # Avoiding by the left
@@ -623,7 +625,7 @@ class Charles:
                 velocity_y = 0
 
             # Waypoint is reached
-            print("My location : ", self.xyz)
+            #print("My location : ", self.xyz)
             if self.xyz[0] < x_waypoint:
                 # print("I'm at waypoint")
                 velocity_x = 0
@@ -646,7 +648,7 @@ class Charles:
 
         epsilon = 0.3
         VELOCITY_X = 0.4
-        VELOCITY_Y = 0.8
+        VELOCITY_Y = 0.4
 
         velocity_x = 0.0
         velocity_y = 0.0
@@ -773,10 +775,12 @@ class Charles:
 
         # Arrived in searching zone
         # print(abs(self.xyz[1]))
-        if (abs(self.xyz[1]) < self.xyz0[1]):
-            self.keep_flying = False
-            velocity_x = 0.0
-            velocity_y = 0.0
+            if (abs(self.xyz[1]) < self.xyz0[1]):
+                #print(self.xyz)
+            
+                self.keep_flying = False
+                velocity_x = 0.0
+                velocity_y = 0.0
 
         # Send command
         self.xyz_rate_cmd = [velocity_x, velocity_y, 0]
@@ -1101,7 +1105,7 @@ class Charles:
                         # test centering:
                         time.sleep(.5)
                         #self.xyz_rate_cmd = np.array([0.2, 0., 0.])
-                        #self.xyz_rate_cmd = np.array([0., 0.2, 0.])
+                        #self.xyz_rate_cmd = np.array([0., 0.4, 0.])
                         #self.xyz_rate_cmd = np.array([-0.2, 0., 0.])
                         #self.xyz_rate_cmd = np.array([0., -0.2, 0.])
                         #self.state = 3
@@ -1204,9 +1208,9 @@ class Charles:
 
                 elif self.state == 3 or self.state == 7:
                     # ---- Search center of the landing zone ----#
-                    self.centering3()
+                    #self.centering2()
                     #self.detectEdge()
-                    #self.centering3()
+                    self.centering3()
                     if self.centerReached:
                         if self.state == 3:  # Si on est au state 3, on s'est posé sur la zone d'arrivée -> On passe au state suivant
                             self.state += 1
@@ -1239,6 +1243,15 @@ class Charles:
                         time.sleep(0.5)
                         self.state += 1
                         self.keep_searching = True
+
+                    if self.xyz[0] < 1.5:
+                        self.detectEdge()
+                        if self.edgeDetected:
+                            self.keep_flying = False
+                            self.state = 7
+                    
+
+                    
 
 
                 else:
