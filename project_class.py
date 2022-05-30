@@ -91,7 +91,8 @@ class playground:
         self.padCenter = np.array([0., 0.])
 
         # Inital position of the platform
-        self.xyz0 = np.array([0.7, 1, 0.1])
+        self.xyz0 = np.array([1, 1, 0.1])
+        # x = 1, y = 2
 
 
 
@@ -167,7 +168,7 @@ class Charles:
         self.l = 0.1  # y margin
         self.L = self.playground.W - 2 * self.l  # y width
         self.h = 0.1  # x margin
-        self.N = 5  # Number of way
+        self.N = 6  # Number of way
         self.H = (self.playground.H3 - 2 * self.h) / (self.N - 1)  # Distance between two ways
 
         self.N_spiral = 5  # Number of spirals to plan
@@ -253,7 +254,7 @@ class Charles:
         VELOCITY_X = 0.4
         VELOCITY_Y = 0.8
         MIN_Y = 0.5
-        MAX_DISTANCE = 2.7
+        MAX_DISTANCE = self.playground.H1 + self.playground.H2 - self.xyz0[0]
 
         # Commands
         velocity_x = 0.0
@@ -734,7 +735,7 @@ class Charles:
 
     # ----------------------------------------------------------------------------------------#
     def detectEdge(self, edgeType=0):
-    """Function to detect an edge using the z-ranger"""
+        """Function to detect an edge using the z-ranger"""
         self.edgeFound = 0
 
         if (self.diffZ > self.edgeThresholdUp) and not self.edgeDetected:
@@ -755,7 +756,7 @@ class Charles:
 
     # ----------------------------------------------------------------------------------------#
     def centering3(self):
-    """Function to center the drone above the platform before landing"""
+        """Function to center the drone above the platform before landing"""
         if self.stateCentering == 0:
             self.detectEdge()
             if self.edgeDetected:
@@ -871,7 +872,7 @@ class Charles:
     # ----------------------------------------------------------------------------------------#
 
     def stateMachine(self, scf):
-    """Main function that manages the transition between each state of the drone"""
+        """Main function that manages the transition between each state of the drone"""
         with MotionCommander(scf, default_height=self.default_height) as mc:
             while (self.is_not_close()):
 
@@ -1013,7 +1014,7 @@ class Charles:
     # ----------------------------------------------------------------------------------------#
 
     def run(self):
-    """Function that setup and run the whole program"""
+        """Function that setup and run the whole program"""
         print("Connection ..")
 
         with SyncCrazyflie(self.uri, cf=Crazyflie(rw_cache='./cache')) as scf:
