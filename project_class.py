@@ -11,15 +11,6 @@ import numpy as np
 
 logging.basicConfig(level=logging.ERROR)
 
-######################################### INFO ###########################################
-
-"""
-ATTENTION : J'AI CHANGE LE SIGNE DE Y DANS LA CALLBACK ET A LA FIN DE LA STATE MACHINE QUAND
-ON SET LA COMMANDE DE VITESSE POUR QUE LE SENS DES Y POSITIFS
-CORRESPONDE AU SENS DU DESSIN DU PLAYGROUND -> SI CA POSE PROBLEME ON POURRA CHANGER
-MAIS POUR LA PARTIE RECHERCHE DE PLATEFORME CA M'ARRANGAIT
-"""
-
 
 ###################################### CONTROLLER ########################################
 
@@ -148,8 +139,6 @@ class Charles:
         self.edgeFound = 0  # 0:not found, 1:rising edge, 2:falling edge
         self.edgeThresholdUp = 0.015
         self.edgeThresholdDown = 0.01
-        #self.edgeThresholdUp = 0.03
-        #self.edgeThresholdDown = 0.01
         self.edgeTimeDelay = 0.5
         self.centerReached = False
         self.queueZ = 50 * [0.]
@@ -175,13 +164,13 @@ class Charles:
         # Constants :
         self.min_dist = 300  # Distance to stop flying
 
-        self.l = 0.1  # marge de chaque côté en y
-        self.L = self.playground.W - 2 * self.l  # Largeur des allers retours en y
-        self.h = 0.1  # marge de chaque côté en x
-        self.N = 5  # Nombre d'allers
-        self.H = (self.playground.H3 - 2 * self.h) / (self.N - 1)  # Ecart x entre chaque aller
+        self.l = 0.1  # y margin
+        self.L = self.playground.W - 2 * self.l  # y width
+        self.h = 0.1  # x margin
+        self.N = 5  # Number of way
+        self.H = (self.playground.H3 - 2 * self.h) / (self.N - 1)  # Distance between two ways
 
-        self.N_spiral = 5  # Number of spiral to plan
+        self.N_spiral = 5  # Number of spirals to plan
         self.H_spiral = 0.3  # Distance between each spiral
 
         self.Te_loop = 0.01  # frequency of main loop in !!! SECONDS !!!
@@ -211,8 +200,8 @@ class Charles:
 
     # ----------------------------------------------------------------------------------------#
 
-    def setLog(self):
-
+    def setLog(self): 
+        # Set the log configuration
         self.log_position = LogConfig(name='Position', period_in_ms=self.Te_log)
         self.log_multiranger = LogConfig(name='Multiranger', period_in_ms=self.Te_log)
 
@@ -232,7 +221,8 @@ class Charles:
         self.queueZ.append(self.xyz[2] ** 3)
         self.diffZ = max(self.queueZ) - min(self.queueZ)
         self.meanZ = sum(self.queueZ) / len(self.queueZ)
-       
+        
+        # When the drones take off again, its referential changes
         if self.state >= 4:
             self.xyz[0] += self.playground.padCenter[0]
             self.xyz[1] += self.playground.padCenter[1]
@@ -302,6 +292,7 @@ class Charles:
 
     # ----------------------------------------------------------------------------------------#
     def set_spiral_waypoints(self):
+        """ Creates waypoints in a spiral shape to search the landing pad in the starting zone"""
         self.waypoints = np.array([])
         self.waypoints = np.append(self.waypoints, [self.xyz[0], self.xyz[1], self.xyz[2]])
 
@@ -332,11 +323,10 @@ class Charles:
         ##########################################
         """
         # When we enter this function, drone is at position pi
-
+        
         self.waypoints = np.array([])
-
-        # Start en bas à gauche : P(x0, l, 0.5) -> On assume que xyz_global[1] > W/2
         self.waypoints = np.append(self.waypoints, [self.xyz_global[0], self.l, self.default_height])
+
         # Direction to start obstacle avoidance
         self.move = 0
 
@@ -744,6 +734,7 @@ class Charles:
 
     # ----------------------------------------------------------------------------------------#
     def detectEdge(self, edgeType=0):
+    """Function to detect an edge using the z-ranger"""
         self.edgeFound = 0
 
         if (self.diffZ > self.edgeThresholdUp) and not self.edgeDetected:
@@ -764,6 +755,7 @@ class Charles:
 
     # ----------------------------------------------------------------------------------------#
     def centering3(self):
+    """Function to center the drone above the platform before landing"""
         if self.stateCentering == 0:
             self.detectEdge()
             if self.edgeDetected:
@@ -876,157 +868,10 @@ class Charles:
                 self.xyz_rate_cmd = np.array([0., 0., 0.])
                 self.stateCentering += 1
 
-    def centering2(self):
-        if self.stateCentering == 0:
-            self.detectEdge()
-            if self.edgeDetected:
-                # calculate first coordinate of the pad along the principal direction of motion
-                if abs(self.xyz_rate_cmd[0]) > abs(self.xyz_rate_cmd[1]):
-                    self.playground.padCenter = np.array(
-                        [self.xyz_global[0] + np.sign(self.xyz_rate_cmd[0]) * self.playground.padSize_x,
-                         self.xyz_global[1]])
-                else:
-                    self.playground.padCenter = np.array([self.xyz_global[0],
-                                                          self.xyz_global[1] + np.sign(
-                                                              self.xyz_rate_cmd[1]) * self.playground.padSize_y])
-                # set waypoint to pseudo center
-                self.waypoints = np.array([self.playground.padCenter[0],
-                                           self.playground.padCenter[1],
-                                           self.default_height])
-
-                # save speed commands (used later to move perpendicular to it)
-                self.xyz_rate_cmd_old = np.array(self.xyz_rate_cmd)
-                self.xyz_rate_cmd_old = 0.2 * self.xyz_rate_cmd_old / np.max(np.abs(self.xyz_rate_cmd_old))
-
-                self.stateCentering += 1
-
-        if self.stateCentering == 1:
-            if not self.follow_waypoints():
-                # move perpendicular to previous direction
-                self.xyz_rate_cmd = np.array([self.xyz_rate_cmd_old[1],
-                                              self.xyz_rate_cmd_old[0],
-                                              self.xyz_rate_cmd_old[2]])
-                self.stateCentering += 1
-
-        if self.stateCentering == 2:
-            self.detectEdge()
-            if self.edgeDetected:
-                # calculate second coordinate of the pad along the principal direction of motion
-                if abs(self.xyz_rate_cmd[0]) > abs(self.xyz_rate_cmd[1]):
-                    self.playground.padCenter[0] = self.xyz_global[0] - np.sign(
-                        self.xyz_rate_cmd[0]) * self.playground.padSize_x
-                else:
-                    self.playground.padCenter[1] = self.xyz_global[1] - np.sign(
-                        self.xyz_rate_cmd[1]) * self.playground.padSize_y
-
-                # set waypoint to center and lower height
-                self.waypoints = np.array([self.playground.padCenter[0],
-                                           self.playground.padCenter[1],
-                                           self.default_height])
-                self.waypoints = np.append(self.waypoints,
-                                           [self.playground.padCenter[0], self.playground.padCenter[1], 0.15])
-
-                self.stateCentering += 1
-                time.sleep(self.edgeTimeDelay)  # for stabilization
-
-        if self.stateCentering == 3:
-            if not self.follow_waypoints():
-                self.centerReached = True
-                self.xyz_rate_cmd = np.array([0., 0., 0.])
-                self.stateCentering += 1
-
-    def centering(self):
-        if self.stateCentering == 0:
-            self.detectEdge()
-            if self.edgeFound:  # first falling edge detected, go back
-                if self.idx:
-                    self.playground.padEdge[self.stateCentering, 0] = self.xyz_global[0]
-                    self.playground.padEdge[self.stateCentering, 1] = self.xyz_global[1]
-                    time.sleep(self.edgeTimeDelay)
-                    self.xyz_rate_cmd *= -1
-
-                    self.stateCentering += 1
-                    self.idx = 0
-                else:
-                    self.idx = 1
-
-        elif self.stateCentering == 1:
-            self.detectEdge()
-            if self.edgeFound:  # second falling edge detected, compute pseudo center and add to waypoint
-                if self.idx:
-                    self.playground.padEdge[self.stateCentering, 0] = self.xyz_global[0]
-                    self.playground.padEdge[self.stateCentering, 1] = self.xyz_global[1]
-
-                    self.playground.padCenter = [(self.playground.padEdge[0, 0] + self.playground.padEdge[1, 0]) / 2,
-                                                 (self.playground.padEdge[0, 1] + self.playground.padEdge[1, 1]) / 2]
-                    time.sleep(self.edgeTimeDelay)
-
-                    self.waypoints = np.array([])
-                    self.waypoints = np.append(self.waypoints,
-                                               [self.playground.padCenter[0], self.playground.padCenter[1],
-                                                self.default_height])
-
-                    self.xyz_rate_cmd_old = self.xyz_rate_cmd  # for later use
-
-                    self.stateCentering += 1
-                    self.idx = 0
-
-                else:
-                    self.idx = 1
-
-        elif self.stateCentering == 2:
-            self.detectEdge()
-            if not self.centerReached:
-                if not self.follow_waypoints():
-                    self.centerReached = True
-                    self.xyz_rate_cmd = np.array(
-                        [self.xyz_rate_cmd_old[1], self.xyz_rate_cmd_old[0], self.xyz_rate_cmd_old[2]])
-
-            else:
-                if self.edgeFound:  # third falling edge detected, go back
-                    self.playground.padEdge[self.stateCentering, 0] = self.xyz_global[0]
-                    self.playground.padEdge[self.stateCentering, 1] = self.xyz_global[1]
-
-                    self.centerReached = False
-
-                    time.sleep(self.edgeTimeDelay)
-                    self.xyz_rate_cmd *= -1
-
-                    self.stateCentering += 1
-
-        elif self.stateCentering == 3:
-            self.detectEdge()
-            if self.edgeFound:  # fourth (last) falling edge detected, compute center
-                if self.idx:
-                    self.playground.padEdge[self.stateCentering, 0] = self.xyz_global[0]
-                    self.playground.padEdge[self.stateCentering, 1] = self.xyz_global[1]
-
-                    if abs(self.xyz_rate_cmd[0]) > abs(self.xyz_rate_cmd[1]):
-                        self.playground.padCenter[0] = (
-                                (self.playground.padEdge[2, 0] + self.playground.padEdge[3, 0]) / 2)
-                    else:
-                        self.playground.padCenter[1] = (
-                                (self.playground.padEdge[2, 1] + self.playground.padEdge[3, 1]) / 2)
-                    # print(self.playground.padCenter)
-                    time.sleep(self.edgeTimeDelay)
-                    self.waypoints = np.array([])
-                    self.waypoints = np.append(self.waypoints,
-                                               [self.playground.padCenter[0], self.playground.padCenter[1],
-                                                self.default_height])
-
-                    self.stateCentering += 1
-                    self.idx = 0
-                else:
-                    self.idx = 1
-
-        elif self.stateCentering == 4:
-            if not self.follow_waypoints():
-                self.centerReached = True
-                self.xyz_rate_cmd = [0, 0, 0]
-
     # ----------------------------------------------------------------------------------------#
 
     def stateMachine(self, scf):
+    """Main function that manages the transition between each state of the drone"""
         with MotionCommander(scf, default_height=self.default_height) as mc:
             while (self.is_not_close()):
 
@@ -1168,6 +1013,7 @@ class Charles:
     # ----------------------------------------------------------------------------------------#
 
     def run(self):
+    """Function that setup and run the whole program"""
         print("Connection ..")
 
         with SyncCrazyflie(self.uri, cf=Crazyflie(rw_cache='./cache')) as scf:
